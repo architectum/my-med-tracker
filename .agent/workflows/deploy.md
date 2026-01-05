@@ -1,12 +1,13 @@
 ---
-description: Steps to deploy the Med Tracker application to Firebase
+description: Steps to deploy the Med Tracker application to Firebase (Spark/Free Tier)
 ---
+
+# Firebase Deployment (Free Tier)
 
 1. **Configure Firebase Project:**
     - Go to the [Firebase Console](https://console.firebase.google.com/).
     - Create a new project (e.g., `my-med-tracker`).
     - Enable **Firestore Database** in the "Build" menu. Choose "Production mode" and a location near you.
-    - Enable **Cloud Functions** (requires Blaze plan, but you can use direct Firestore access if you prefer).
     - Enable **Hosting**.
 
 2. **Add Firebase Configuration:**
@@ -30,6 +31,5 @@ description: Steps to deploy the Med Tracker application to Firebase
     npm run deploy
     ```
 
-// turbo
-6.  **Verify Backend Health (Optional):**
-    After deployment, you can check if your backend is alive by visiting `https://<YOUR_REGION>-<YOUR_PROJECT_ID>.cloudfunctions.net/api/health`.
+6. **Verify Firestore Rules:**
+    Ensure your `firestore.rules` allow the frontend to read/write data. For development, the current rules allow public access, but you should secure them with Firebase Auth eventually.

@@ -1,16 +1,51 @@
-# React + Vite
+# My Med Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A simple medication dosage tracker built with React, Vite, and Firebase.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Real-time synchronization with Firebase Firestore.
+- Track dosages for multiple patients (AH and EI).
+- Daily history view with navigation.
+- Export/Import functionality for backups.
+- Premium, mobile-friendly design.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React (Hooks, Context), Vite.
+- **Backend/Database**: Firebase Firestore.
+- **Hosting**: Firebase Hosting.
+- **Styling**: TailwindCSS via CDN (in `index.html`).
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 1. Prerequisites
+
+- Node.js installed.
+- [Firebase CLI](https://firebase.google.com/docs/cli) installed (`npm install -g firebase-tools`).
+
+### 2. Setup Firebase
+
+1. Create a project in the [Firebase Console](https://console.firebase.google.com/).
+2. Enable **Firestore Database** (Production mode).
+3. Create a **Web App** in Project Settings.
+4. Copy the `firebaseConfig` and paste it into `src/firebase.js`.
+5. Update your Project ID in `.firebaserc`.
+
+### 3. Local Development
+
+```bash
+npm install
+npm run dev
+```
+
+### 4. Deployment (Spark/Free Plan)
+
+```bash
+firebase login
+npm run deploy
+```
+
+## Security Note
+
+The initial `firestore.rules` are set to be public for development. **Important:** Before going live, update your rules to restrict access (e.g., using Firebase Authentication).
