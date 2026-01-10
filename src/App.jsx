@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { db } from './firebase';
-import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, Timestamp, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, Timestamp, orderBy, getDocs, writeBatch } from "firebase/firestore";
 
 // --- ДОПОМІЖНІ ФУНКЦІЇ ---
 
@@ -54,7 +54,14 @@ const formatViewedDate = (date) => {
  * @param {{title: string, storageKey: string}} props - Налаштування картки
  */
 function MedTrackerCard({ title, storageKey }) {
-  const [currentDosage, setCurrentDosage] = useState(50);
+  // Конфігурація для одиниць виміру
+  const UNIT_CONFIG = {
+    mg: { min: 1, max: 250, step: 1, default: 50, label: 'мг' },
+    ml: { min: 0.1, max: 5.0, step: 0.1, default: 0.5, label: 'мл' }
+  };
+
+  const [unit, setUnit] = useState('mg');
+  const [currentDosage, setCurrentDosage] = useState(UNIT_CONFIG.mg.default);
 
   const [dosageHistory, setDosageHistory] = useState([]);
   const [viewedDate, setViewedDate] = useState(getStartOfDay(new Date()));
@@ -97,6 +104,30 @@ function MedTrackerCard({ title, storageKey }) {
     setCurrentDosage(Number(event.target.value));
   }, []);
 
+  const handleUnitChange = useCallback((newUnit) => {
+    setUnit(newUnit);
+    setCurrentDosage(UNIT_CONFIG[newUnit].default);
+  }, []);
+
+  const incrementDosage = useCallback(() => {
+    setCurrentDosage(prev => {
+      const config = UNIT_CONFIG[unit];
+      const nextVal = prev + config.step;
+      // Виправляємо точність для дробових чисел (напр. 0.1)
+      const rounded = Math.round(nextVal * 10) / 10;
+      return rounded > config.max ? prev : rounded;
+    });
+  }, [unit]);
+
+  const decrementDosage = useCallback(() => {
+    setCurrentDosage(prev => {
+      const config = UNIT_CONFIG[unit];
+      const nextVal = prev - config.step;
+      const rounded = Math.round(nextVal * 10) / 10;
+      return rounded < config.min ? prev : rounded;
+    });
+  }, [unit]);
+
   const handleDateTimeChange = useCallback((event) => {
     const { name, value } = event.target;
     const newDateTime = new Date(selectedDateTime);
@@ -118,6 +149,7 @@ function MedTrackerCard({ title, storageKey }) {
       await addDoc(collection(db, "intakes"), {
         patientId: title,
         dosage: currentDosage,
+        unit: unit,
         timestamp: Timestamp.fromDate(intakeTimestamp),
         createdAt: Timestamp.now()
       });
@@ -186,33 +218,74 @@ function MedTrackerCard({ title, storageKey }) {
 
       {/* --- Секція Слайдера --- */}
       <div className="mb-8 p-4 bg-blue-50 rounded-2xl shadow-inner border border-blue-100">
-        <label
-          htmlFor={`dosage-slider-${title}`}
-          className="block text-lg font-semibold text-blue-800 mb-3"
-        >
-          Оберіть дозу (мг):
-        </label>
 
-        {/* --- Відображення поточної дози --- */}
-        <div className="text-center text-6xl font-extrabold text-blue-700 mb-5 drop-shadow-md">
-          {currentDosage}
-          <span className="text-3xl font-normal text-blue-500 ml-1">мг</span>
+        {/* --- Перемикач одиниць --- */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-white p-1 rounded-lg shadow-sm border border-blue-100 inline-flex">
+            <button
+              onClick={() => handleUnitChange('mg')}
+              className={`px-4 py-1 rounded-md text-sm font-bold transition-colors duration-200 ${unit === 'mg'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100'
+                }`}
+            >
+              МГ
+            </button>
+            <button
+              onClick={() => handleUnitChange('ml')}
+              className={`px-4 py-1 rounded-md text-sm font-bold transition-colors duration-200 ${unit === 'ml'
+                ? 'bg-yellow-400 text-blue-900 shadow-sm'
+                : 'text-gray-500 hover:bg-gray-100'
+                }`}
+            >
+              МЛ
+            </button>
+          </div>
+        </div>
+
+        {/* --- Відображення поточної дози з кнопками --- */}
+        <div className="flex items-center justify-between mb-5">
+          <button
+            onClick={decrementDosage}
+            className="w-12 h-12 flex items-center justify-center bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold text-2xl"
+            aria-label="Зменшити дозу"
+          >
+            -
+          </button>
+
+          <div className="text-center drop-shadow-md mx-2 min-w-[120px]">
+            <span className={`text-6xl font-extrabold ${unit === 'ml' ? 'text-yellow-500' : 'text-blue-700'}`}>
+              {currentDosage}
+            </span>
+            <span className={`text-2xl font-bold ml-1 ${unit === 'ml' ? 'text-yellow-400' : 'text-blue-500'}`}>
+              {UNIT_CONFIG[unit].label}
+            </span>
+          </div>
+
+          <button
+            onClick={incrementDosage}
+            className="w-12 h-12 flex items-center justify-center bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 font-bold text-2xl"
+            aria-label="Збільшити дозу"
+          >
+            +
+          </button>
         </div>
 
         {/* --- Слайдер --- */}
         <input
           id={`dosage-slider-${title}`}
           type="range"
-          min="1"
-          max="250"
+          min={UNIT_CONFIG[unit].min}
+          max={UNIT_CONFIG[unit].max}
+          step={UNIT_CONFIG[unit].step}
           value={currentDosage}
           onChange={handleDosageChange}
           className="w-full h-3 bg-gradient-to-r from-blue-300 to-blue-500 rounded-full appearance-none cursor-pointer accent-blue-600 shadow-md transition-all duration-200 ease-in-out hover:shadow-lg"
           style={{ WebkitAppearance: 'none', height: '8px' }} // Додаткові стилі для крос-браузерності
         />
         <div className="flex justify-between text-sm text-gray-500 mt-2 px-1">
-          <span>1 мг</span>
-          <span>250 мг</span>
+          <span>{UNIT_CONFIG[unit].min} {UNIT_CONFIG[unit].label}</span>
+          <span>{UNIT_CONFIG[unit].max} {UNIT_CONFIG[unit].label}</span>
         </div>
       </div>
 
@@ -324,8 +397,8 @@ function MedTrackerCard({ title, storageKey }) {
                 className="flex justify-between items-center bg-gradient-to-r from-white to-gray-50 p-4 rounded-xl shadow-md transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5 group"
               >
                 <div className="flex items-center">
-                  <span className="font-extrabold text-blue-700 text-xl mr-3">
-                    {intake.dosage} мг
+                  <span className={`font-extrabold text-xl mr-3 ${intake.unit === 'ml' ? 'text-yellow-600' : 'text-blue-700'}`}>
+                    {intake.dosage} {intake.unit || 'мг'}
                   </span>
                   <span className="text-md text-gray-600">
                     {formatTime(intake.timestamp)}
@@ -500,6 +573,14 @@ export default function App() {
               title="Імпортувати історію з .json файлу"
             >
               Імпорт
+            </button>
+
+            <button
+              onClick={handleMigration}
+              className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 py-1.5 px-4 rounded-full transition-colors duration-200 shadow-sm border border-blue-200"
+              title="Оновити старі записи (додати мг)"
+            >
+              Fix Data
             </button>
 
             {/* Прихований input, який ми активуємо кнопкою "Імпорт" */}
