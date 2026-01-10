@@ -234,7 +234,7 @@ function MedTrackerCard({ title, storageKey }) {
             <button
               onClick={() => handleUnitChange('ml')}
               className={`px-4 py-1 rounded-md text-sm font-bold transition-colors duration-200 ${unit === 'ml'
-                ? 'bg-yellow-400 text-blue-900 shadow-sm'
+                ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-gray-500 hover:bg-gray-100'
                 }`}
             >
@@ -254,10 +254,10 @@ function MedTrackerCard({ title, storageKey }) {
           </button>
 
           <div className="text-center drop-shadow-md mx-2 min-w-[120px]">
-            <span className={`text-6xl font-extrabold ${unit === 'ml' ? 'text-yellow-500' : 'text-blue-700'}`}>
+            <span className={`text-6xl font-extrabold ${unit === 'ml' ? 'text-purple-700' : 'text-blue-700'}`}>
               {currentDosage}
             </span>
-            <span className={`text-2xl font-bold ml-1 ${unit === 'ml' ? 'text-yellow-400' : 'text-blue-500'}`}>
+            <span className={`text-2xl font-bold ml-1 ${unit === 'ml' ? 'text-purple-500' : 'text-blue-500'}`}>
               {UNIT_CONFIG[unit].label}
             </span>
           </div>
@@ -397,7 +397,7 @@ function MedTrackerCard({ title, storageKey }) {
                 className="flex justify-between items-center bg-gradient-to-r from-white to-gray-50 p-4 rounded-xl shadow-md transition-all duration-200 hover:shadow-lg transform hover:-translate-y-0.5 group"
               >
                 <div className="flex items-center">
-                  <span className={`font-extrabold text-xl mr-3 ${intake.unit === 'ml' ? 'text-yellow-600' : 'text-blue-700'}`}>
+                  <span className={`font-extrabold text-xl mr-3 ${intake.unit === 'ml' ? 'text-purple-700' : 'text-blue-700'}`}>
                     {intake.dosage} {intake.unit || 'мг'}
                   </span>
                   <span className="text-md text-gray-600">
@@ -508,44 +508,6 @@ export default function App() {
     reader.readAsText(file);
   }, []);
 
-  /**
-   * Обробник міграції старих даних (додавання поля unit: 'mg')
-   */
-  const handleMigration = useCallback(async () => {
-    try {
-      if (!window.confirm("Це оновить всі старі записи в базі, додавши unit = 'mg', якщо його немає. Продовжити?")) {
-        return;
-      }
-
-      console.log("Початок міграції...");
-      const querySnapshot = await getDocs(collection(db, "intakes"));
-      const batch = writeBatch(db);
-      let updatesCount = 0;
-
-      querySnapshot.forEach((docSnapshot) => {
-        const data = docSnapshot.data();
-        if (!data.unit) {
-          const docRef = doc(db, "intakes", docSnapshot.id);
-          batch.update(docRef, { unit: 'mg' });
-          updatesCount++;
-        }
-      });
-
-      if (updatesCount > 0) {
-        await batch.commit();
-        console.log(`Міграція завершена. Оновлено ${updatesCount} документів.`);
-        alert(`Успішно оновлено ${updatesCount} записів!`);
-      } else {
-        console.log("Міграція не потрібна. Всі документи вже мають поле unit.");
-        alert("Всі записи вже актуальні.");
-      }
-
-    } catch (e) {
-      console.error("Помилка під час міграції:", e);
-      alert("Сталася помилка. Перевірте консоль.");
-    }
-  }, []);
-
   return (
     <>
       {/* Додаємо стилі для анімацій та скролбару */}
@@ -583,7 +545,7 @@ export default function App() {
       <div className="flex flex-col min-h-screen w-full bg-gradient-to-br from-blue-100 to-indigo-200 font-sans text-gray-800">
 
         {/* Головний контейнер, що розміщує картки */}
-        <main className="flex-grow flex flex-col md:flex-row justify-center items-stretch p-4 gap-4">
+        <main className="flex-grow flex flex-col md:flex-row justify-center items-center p-4 gap-4">
           <MedTrackerCard
             title="AH"
             storageKey="medTrackerHistory_AH"
@@ -613,13 +575,6 @@ export default function App() {
               Імпорт
             </button>
 
-            <button
-              onClick={handleMigration}
-              className="text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 py-1.5 px-4 rounded-full transition-colors duration-200 shadow-sm border border-blue-200"
-              title="Оновити старі записи (додати мг)"
-            >
-              Fix Data
-            </button>
 
             {/* Прихований input, який ми активуємо кнопкою "Імпорт" */}
             <input
