@@ -10,5 +10,7 @@
   "border": "#FFE082",
   "timelineLine": "#FFCCBC",
   "markerColor": "#FFAB91",
+  "timelineBackground": "rgba(255, 241, 118, 0.55)",
+  "timelineSecondaryBackground": "rgba(255, 138, 101, 0.45)",
   "success": "#43A047"
 }

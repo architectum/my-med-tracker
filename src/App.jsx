@@ -220,25 +220,26 @@ function TimelineHistory({ onDayChange }) {
     dayRefs.current = sortedDays.map((_, idx) => dayRefs.current[idx] || React.createRef());
   }, [sortedDays]);
 
-  const updateCurrentDayHeading = useCallback(() => {
-    if (!scrollRef.current || !sortedDays.length) return;
-    const containerTop = scrollRef.current.getBoundingClientRect().top;
-    let activeIndex = 0;
+   const updateCurrentDayHeading = useCallback(() => {
+     if (!scrollRef.current || !sortedDays.length) return;
+     const containerTop = scrollRef.current.getBoundingClientRect().top;
+     const headerOffset = 48;
+     let activeIndex = 0;
 
-    dayRefs.current.forEach((ref, idx) => {
-      if (!ref.current) return;
-      const rect = ref.current.getBoundingClientRect();
-      const topOffset = rect.top - containerTop;
-      if (topOffset <= 20) {
-        activeIndex = idx;
-      }
-    });
+     dayRefs.current.forEach((ref, idx) => {
+       if (!ref.current) return;
+       const rect = ref.current.getBoundingClientRect();
+       const topOffset = rect.top - containerTop;
+       if (topOffset <= headerOffset) {
+         activeIndex = idx;
+       }
+     });
 
-    const activeDay = sortedDays[activeIndex];
-    if (activeDay) {
-      onDayChange(formatViewedDate(activeDay.date));
-    }
-  }, [onDayChange, sortedDays]);
+     const activeDay = sortedDays[activeIndex];
+     if (activeDay) {
+       onDayChange(formatViewedDate(activeDay.date));
+     }
+   }, [onDayChange, sortedDays]);
 
   useEffect(() => {
     updateCurrentDayHeading();
@@ -257,13 +258,16 @@ function TimelineHistory({ onDayChange }) {
       onScroll={updateCurrentDayHeading}
     >
       <div className="relative">
-        {sortedDays.map((day, index) => (
-          <div
-            key={day.date.getTime()}
-            ref={dayRefs.current[index]}
-            className="relative"
-            style={{ height: `${DAY_HEIGHT}px` }}
-          >
+         {sortedDays.map((day, index) => (
+           <div
+             key={day.date.getTime()}
+             ref={dayRefs.current[index]}
+             className="relative"
+             style={{
+               height: `${DAY_HEIGHT}px`,
+               background: index % 2 === 0 ? 'var(--timeline-bg)' : 'var(--timeline-bg-alt)'
+             }}
+           >
             {/* Markers */}
             {[...Array(24 * 6)].map((_, i) => {
               const mins = i * 10;
@@ -361,6 +365,8 @@ export default function App() {
     root.style.setProperty('--border', currentTheme.border);
     root.style.setProperty('--timeline-line', currentTheme.timelineLine);
     root.style.setProperty('--marker-color', currentTheme.markerColor);
+    root.style.setProperty('--timeline-bg', currentTheme.timelineBackground);
+    root.style.setProperty('--timeline-bg-alt', currentTheme.timelineSecondaryBackground);
     root.style.setProperty('--success-color', currentTheme.success);
     localStorage.setItem('theme', currentTheme.name);
   }, [currentTheme]);
