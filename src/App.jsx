@@ -363,11 +363,16 @@ function MedTrackerCard({
         <div className="w-full space-y-2">
           <button
             onClick={() => (isSelectingTime ? onCancelTimeSelection(title) : onStartTimeSelection(title))}
-            className="w-full py-2 rounded-xl bg-black/5 text-[var(--text-secondary)] text-xs font-semibold flex items-center justify-center gap-2"
+            className="w-full py-2 rounded-xl text-[var(--text-secondary)] text-xs font-semibold flex items-center justify-center gap-2"
+            style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
           >
-            <span className="text-lg">🕒</span>
             {isSelectingTime
-              ? (selectedTime ? `Відміна · ${formatTime(selectedTime)}${selectedDateLabel}` : 'Відміна')
+              ? (selectedTime ? (
+                <span className="flex items-center gap-2">
+                  {`${formatTime(selectedTime)}${selectedDateLabel}`}
+                  <span className="text-red-500 text-base leading-none">✕</span>
+                </span>
+              ) : 'Відміна')
               : 'Вказати час'}
           </button>
 
@@ -721,7 +726,7 @@ export default function App() {
       {notification && <Notification message={notification} onClose={() => setNotification(null)} />}
 
       {/* Header */}
-      <header className="p-4 flex justify-end items-center">
+      <header className="p-3 flex justify-end items-center">
         <button
           type="button"
           onClick={() => setShowSettings(true)}
