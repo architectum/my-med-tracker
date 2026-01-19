@@ -281,6 +281,12 @@ function MedTrackerCard({
   const [unit, setUnit] = useState('mg');
   const [currentDosage, setCurrentDosage] = useState(UNIT_CONFIG.mg.default);
   const isAddDisabled = isSelectingTime && !selectedTime;
+  const isSelectedToday = selectedTime
+    ? getStartOfDay(selectedTime).getTime() === getStartOfDay(new Date()).getTime()
+    : false;
+  const selectedDateLabel = selectedTime && !isSelectedToday
+    ? ` ${selectedTime.toLocaleDateString('uk-UA')}`
+    : '';
 
   const handleUnitChange = (newUnit) => {
     setUnit(newUnit);
@@ -361,7 +367,7 @@ function MedTrackerCard({
           >
             <span className="text-lg">🕒</span>
             {isSelectingTime
-              ? (selectedTime ? `Відміна · ${formatTime(selectedTime)}` : 'Відміна')
+              ? (selectedTime ? `Відміна · ${formatTime(selectedTime)}${selectedDateLabel}` : 'Відміна')
               : 'Вказати час'}
           </button>
 
