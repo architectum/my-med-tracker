@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GiWaterDrop } from 'react-icons/gi';
+import { FaSyringe, FaPills } from 'react-icons/fa6';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { DAY_HEIGHT, formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
 const SUBTYPE_BADGES = {
-  IV: { label: 'IV', icon: '💧', color: '#4FC3F7' },
-  IM: { label: 'IM', icon: '💉', color: '#BA68C8' },
-  PO: { label: 'PO', icon: '💊', color: '#FFB74D' },
-  'IV+PO': { label: 'IV+PO', icon: '💧💊', color: '#81C784' }
+  IV: { label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
+  IM: { label: 'IM', icon: FaSyringe, color: '#BA68C8' },
+  PO: { label: 'PO', icon: FaPills, color: '#FFB74D' },
+  'IV+PO': { label: 'IV+PO', icon: GiWaterDrop, color: '#81C784' }
 };
 
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
@@ -243,6 +245,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
               const top = getTimeTop(intake.timestamp);
 
               const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
+              const SubtypeIcon = subtypeBadge?.icon;
 
               return (
                 <div
@@ -267,12 +270,15 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       </span>
                       <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
                       <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
-                      {subtypeBadge && (
+                      {subtypeBadge && SubtypeIcon && (
                         <span
                           className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
                           style={{ backgroundColor: subtypeBadge.color }}
                         >
-                          <span className="text-[10px]">{subtypeBadge.icon}</span>
+                          <span className="flex items-center gap-0.5 text-[10px]">
+                            <SubtypeIcon className="text-[10px]" />
+                            {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
+                          </span>
                           {subtypeBadge.label}
                         </span>
                       )}

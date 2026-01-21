@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { GiWaterDrop } from 'react-icons/gi';
+import { FaSyringe, FaPills } from 'react-icons/fa6';
 import { deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDateInput, formatTimeInput } from '../utils/time';
 
 const SUBTYPE_OPTIONS = [
-  { value: 'IV', label: 'IV', icon: '💧', color: '#4FC3F7' },
-  { value: 'IM', label: 'IM', icon: '💉', color: '#BA68C8' },
-  { value: 'PO', label: 'PO', icon: '💊', color: '#FFB74D' },
-  { value: 'IV+PO', label: 'IV+PO', icon: '💧💊', color: '#81C784' }
+  { value: 'IV', label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
+  { value: 'IM', label: 'IM', icon: FaSyringe, color: '#BA68C8' },
+  { value: 'PO', label: 'PO', icon: FaPills, color: '#FFB74D' },
+  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop, color: '#81C784' }
 ];
 
 const IntakeDetailsModal = ({ intake, onClose }) => {
@@ -67,6 +69,7 @@ const IntakeDetailsModal = ({ intake, onClose }) => {
             <div className="grid grid-cols-4 gap-1.5">
               {SUBTYPE_OPTIONS.map((option) => {
                 const isActive = subtype === option.value;
+                const Icon = option.icon;
                 return (
                   <button
                     key={option.value}
@@ -84,7 +87,10 @@ const IntakeDetailsModal = ({ intake, onClose }) => {
                           }
                     }
                   >
-                    <span className="text-sm leading-none">{option.icon}</span>
+                    <span className="flex items-center gap-0.5 text-sm leading-none">
+                      <Icon className="text-[12px]" />
+                      {option.value === 'IV+PO' && <FaPills className="text-[11px]" />}
+                    </span>
                     <span className="text-[8px] font-black tracking-wide">{option.label}</span>
                   </button>
                 );
