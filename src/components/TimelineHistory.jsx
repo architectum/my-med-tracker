@@ -4,10 +4,10 @@ import { db } from '../firebase';
 import { DAY_HEIGHT, formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
 const SUBTYPE_BADGES = {
-  IV: { label: 'IV', icon: '💉', color: '#4FC3F7' },
-  IM: { label: 'IM', icon: '🖋', color: '#BA68C8' },
-  PO: { label: 'PO', icon: '💧', color: '#FFB74D' },
-  IVPO: { label: 'IV+PO', icon: '💉💧', color: '#81C784' }
+  IV: { label: 'IV', icon: '💧', color: '#4FC3F7' },
+  IM: { label: 'IM', icon: '💉', color: '#BA68C8' },
+  PO: { label: 'PO', icon: '💊', color: '#FFB74D' },
+  'IV+PO': { label: 'IV+PO', icon: '💧💊', color: '#81C784' }
 };
 
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {

@@ -12,7 +12,7 @@ const SUBTYPE_OPTIONS = [
   { value: 'IV', label: 'IV', icon: '💧', color: '#4FC3F7' },
   { value: 'IM', label: 'IM', icon: '💉', color: '#BA68C8' },
   { value: 'PO', label: 'PO', icon: '💊', color: '#FFB74D' },
-  { value: 'IVPO', label: 'IV+PO', icon: '💧💊', color: '#81C784' }
+  { value: 'IV+PO', label: 'IV+PO', icon: '💧💊', color: '#81C784' }
 ];
 
 const getDefaultSubtype = (title) => {
