@@ -3,9 +3,17 @@ import { deleteDoc, doc, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatDateInput, formatTimeInput } from '../utils/time';
 
+const SUBTYPE_OPTIONS = [
+  { value: 'IV', label: 'IV', icon: '💧', color: '#4FC3F7' },
+  { value: 'IM', label: 'IM', icon: '💉', color: '#BA68C8' },
+  { value: 'PO', label: 'PO', icon: '💊', color: '#FFB74D' },
+  { value: 'IV+PO', label: 'IV+PO', icon: '💧💊', color: '#81C784' }
+];
+
 const IntakeDetailsModal = ({ intake, onClose }) => {
   const [dosage, setDosage] = useState(intake.dosage);
   const [unit, setUnit] = useState(intake.unit);
+  const [subtype, setSubtype] = useState(intake.subtype || '');
   const [dateValue, setDateValue] = useState(formatDateInput(intake.timestamp));
   const [timeValue, setTimeValue] = useState(formatTimeInput(intake.timestamp));
   const [showConfirm, setShowConfirm] = useState(false);
@@ -16,6 +24,7 @@ const IntakeDetailsModal = ({ intake, onClose }) => {
     await updateDoc(doc(db, 'intakes', intake.id), {
       dosage: Number(dosage),
       unit,
+      subtype: subtype || null,
       timestamp: Timestamp.fromDate(nextDate),
       updatedAt: Timestamp.now()
     });
@@ -53,6 +62,36 @@ const IntakeDetailsModal = ({ intake, onClose }) => {
         </div>
 
         <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2">Підтип</label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {SUBTYPE_OPTIONS.map((option) => {
+                const isActive = subtype === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSubtype(option.value)}
+                    className={`flex flex-col items-center justify-center rounded-xl border text-[9px] font-bold leading-tight transition-all ${
+                      isActive ? 'text-white' : 'text-[var(--text-secondary)]'
+                    }`}
+                    style={
+                      isActive
+                        ? { backgroundColor: option.color, borderColor: option.color }
+                        : {
+                            background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))',
+                            borderColor: 'var(--border)'
+                          }
+                    }
+                  >
+                    <span className="text-sm leading-none">{option.icon}</span>
+                    <span className="text-[8px] font-black tracking-wide">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2">Доза</label>
             <div className="flex items-center gap-2">
