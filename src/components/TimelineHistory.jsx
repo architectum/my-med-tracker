@@ -3,6 +3,13 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { DAY_HEIGHT, formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
+const SUBTYPE_BADGES = {
+  IV: { label: 'IV', icon: '💉', color: '#4FC3F7' },
+  IM: { label: 'IM', icon: '🖋', color: '#BA68C8' },
+  PO: { label: 'PO', icon: '💧', color: '#FFB74D' },
+  IVPO: { label: 'IV+PO', icon: '💉💧', color: '#81C784' }
+};
+
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
   const [intakes, setIntakes] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -235,6 +242,8 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
               const isSelected = selectedId === intake.id;
               const top = getTimeTop(intake.timestamp);
 
+              const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
+
               return (
                 <div
                   key={intake.id}
@@ -258,6 +267,15 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       </span>
                       <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
                       <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
+                      {subtypeBadge && (
+                        <span
+                          className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+                          style={{ backgroundColor: subtypeBadge.color }}
+                        >
+                          <span className="text-[10px]">{subtypeBadge.icon}</span>
+                          {subtypeBadge.label}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div

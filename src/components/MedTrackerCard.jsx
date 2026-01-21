@@ -8,6 +8,19 @@ const UNIT_CONFIG = {
   ml: { min: 0.1, max: 5.0, step: 0.1, default: 0.5, label: 'мл' }
 };
 
+const SUBTYPE_OPTIONS = [
+  { value: 'IV', label: 'IV', icon: '💧', color: '#4FC3F7' },
+  { value: 'IM', label: 'IM', icon: '💉', color: '#BA68C8' },
+  { value: 'PO', label: 'PO', icon: '💊', color: '#FFB74D' },
+  { value: 'IVPO', label: 'IV+PO', icon: '💧💊', color: '#81C784' }
+];
+
+const getDefaultSubtype = (title) => {
+  if (title === 'AH') return 'IM';
+  if (title === 'EI') return 'IV';
+  return '';
+};
+
 const MedTrackerCard = ({
   title,
   onAddSuccess,
@@ -19,6 +32,7 @@ const MedTrackerCard = ({
 }) => {
   const [unit, setUnit] = useState('mg');
   const [currentDosage, setCurrentDosage] = useState(UNIT_CONFIG.mg.default);
+  const [subtype, setSubtype] = useState(() => getDefaultSubtype(title));
   const isAddDisabled = isSelectingTime && !selectedTime;
   const isSelectedToday = selectedTime
     ? getStartOfDay(selectedTime).getTime() === getStartOfDay(new Date()).getTime()
@@ -47,6 +61,7 @@ const MedTrackerCard = ({
         patientId: title,
         dosage: currentDosage,
         unit: unit,
+        subtype: subtype || null,
         timestamp: Timestamp.fromDate(intakeTimestamp),
         createdAt: Timestamp.now()
       });
@@ -87,6 +102,33 @@ const MedTrackerCard = ({
               {u.toUpperCase()}
             </button>
           ))}
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5 w-full mb-3">
+          {SUBTYPE_OPTIONS.map((option) => {
+            const isActive = subtype === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSubtype(option.value)}
+                className={`flex flex-col items-center justify-center rounded-xl border text-[9px] font-bold leading-tight transition-all ${
+                  isActive ? 'text-white' : 'text-[var(--text-secondary)]'
+                }`}
+                style={
+                  isActive
+                    ? { backgroundColor: option.color, borderColor: option.color }
+                    : {
+                        background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))',
+                        borderColor: 'var(--border)'
+                      }
+                }
+              >
+                <span className="text-sm leading-none">{option.icon}</span>
+                <span className="text-[8px] font-black tracking-wide">{option.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-between w-full px-2 mb-4">
