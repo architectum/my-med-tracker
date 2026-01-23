@@ -188,58 +188,73 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
               }, ${index % 2 === 0 ? 'var(--timeline-bg-end)' : 'var(--timeline-bg-alt-end)'})`
             }}
           >
-            <div className="absolute inset-0 z-0">
-              {/* Markers */}
-              {[...Array(24 * 6)].map((_, i) => {
-                const mins = i * 10;
-                const top = ((1440 - mins) / 1440) * 100;
-                const isMajor = mins % 180 === 0;
-                return (
-                <div key={i} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
-                    <div className={`h-[1px] bg-[var(--marker-color)] opacity-40 ${isMajor ? 'w-6' : 'w-3'}`} />
-                    {isMajor && (
-                      <span className="ml-2 text-[10px] font-bold text-[var(--marker-color)] opacity-70">
-                        {String(Math.floor(mins / 60)).padStart(2, '0')}:00
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-              {/* Central Line */}
-              <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-[var(--timeline-line)] -translate-x-1/2 opacity-80 shadow-[0_0_8px_var(--timeline-line)]" />
-            </div>
+            {/* Markers - z-index 1 (lowest layer) */}
+            {[...Array(24 * 6)].map((_, i) => {
+              const mins = i * 10;
+              const top = ((1440 - mins) / 1440) * 100;
+              const isMajor = mins % 180 === 0;
+              return (
+                <div 
+                  key={i} 
+                  className="absolute left-1/2 flex items-center" 
+                  style={{ top: `${top}%`, zIndex: 1 }}
+                >
+                  <div className={`h-px bg-[var(--marker-color)] opacity-40 ${isMajor ? 'w-6' : 'w-3'}`} />
+                  {isMajor && (
+                    <span className="ml-2 text-[10px] font-bold text-[var(--marker-color)] opacity-70">
+                      {String(Math.floor(mins / 60)).padStart(2, '0')}:00
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
-            {/* Current Time Line */}
+            {/* Central Line - z-index 2 */}
+            <div 
+              className="absolute left-1/2 top-0 bottom-0 w-1 bg-[var(--timeline-line)] -translate-x-1/2 opacity-70 shadow-[0_0_8px_var(--timeline-line)]" 
+              style={{ zIndex: 2 }}
+            />
+
+            {/* Current Time Line - z-index 30 */}
             {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
-                <div className="w-full h-px bg-[var(--accent-ah)] opacity-50 shadow-[0_0_8px_var(--accent-ah)]" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ah)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
+              <div 
+                className="absolute left-0 right-0 pointer-events-none" 
+                style={{ top: `${getTimeTop(currentTime)}%`, zIndex: 30 }}
+              >
+                <div className="w-full h-0.5 bg-[var(--accent-ah)] opacity-60 shadow-[0_0_12px_var(--accent-ah)]" />
+                <div className="absolute right-0 -top-4 px-3 py-1 bg-[var(--accent-ah)] text-white text-[10px] font-bold rounded-l-lg shadow-lg">
                   {formatTime(currentTime)}
                 </div>
               </div>
             )}
 
-            {/* Hover Line */}
+            {/* Hover Line - z-index 15 */}
             {hoverLine && hoverLine.date.getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(hoverLine.mins)}%` }}>
-                <div className="w-full h-px bg-[var(--marker-color)] opacity-40" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--marker-color)] text-[var(--text-primary)] text-[10px] font-bold rounded-l-md shadow-sm opacity-80">
+              <div 
+                className="absolute left-0 right-0 pointer-events-none" 
+                style={{ top: `${getTopFromMins(hoverLine.mins)}%`, zIndex: 15 }}
+              >
+                <div className="w-full h-px bg-[var(--marker-color)] opacity-30" />
+                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--marker-color)] text-[var(--text-primary)] text-[10px] font-bold rounded-l-md shadow-sm opacity-70">
                   {formatTime(new Date(day.date.getTime() + hoverLine.mins * 60000))}
                 </div>
               </div>
             )}
 
-            {/* Selected Time Line */}
+            {/* Selected Time Line - z-index 25 */}
             {isSelectingTime && selectedLine && selectedLine.date.getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${getTopFromMins(selectedLine.mins)}%` }}>
-                <div className="w-full h-px bg-[var(--accent-ei)] opacity-80 shadow-[0_0_10px_var(--accent-ei)]" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ei)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
+              <div 
+                className="absolute left-0 right-0 pointer-events-none" 
+                style={{ top: `${getTopFromMins(selectedLine.mins)}%`, zIndex: 25 }}
+              >
+                <div className="w-full h-0.5 bg-[var(--accent-ei)] opacity-90 shadow-[0_0_12px_var(--accent-ei)]" />
+                <div className="absolute right-0 -top-4 px-3 py-1 bg-[var(--accent-ei)] text-white text-[10px] font-bold rounded-l-lg shadow-lg">
                   {formatTime(new Date(day.date.getTime() + selectedLine.mins * 60000))}
                 </div>
               </div>
             )}
 
-            {/* Intakes */}
+            {/* Intakes - z-index 20 (above lines, below current time) */}
             {day.intakes.map((intake) => {
               const isAH = intake.patientId === 'AH';
               const isSelected = selectedId === intake.id;
@@ -255,25 +270,34 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                     e.stopPropagation();
                     onSelectIntake(isSelected ? null : intake);
                   }}
-                  className={`absolute z-10 flex items-center transition-all duration-300 cursor-pointer ${
+                  className={`absolute flex items-center transition-all duration-300 cursor-pointer ${
                     isAH ? 'right-1/2 pr-4 justify-end' : 'left-1/2 pl-4'
                   } ${selectedId && !isSelected ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}
-                  style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '45%' }}
+                  style={{ 
+                    top: `${top}%`, 
+                    transform: 'translateY(-50%)', 
+                    width: '45%',
+                    zIndex: 20
+                  }}
                 >
                   <div
                     className={`flex flex-col ${isAH ? 'items-end' : 'items-start'} ${
-                      isSelected ? 'bg-white/10 p-2 rounded-2xl ring-1 ring-[var(--border)]' : ''
+                      isSelected 
+                        ? 'bg-white/20 backdrop-blur-sm p-2.5 rounded-2xl ring-2 ring-[var(--border)] shadow-lg' 
+                        : 'hover:bg-white/10 p-1 rounded-xl transition-all'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`text-lg font-black ${isAH ? 'text-[var(--accent-ah)]' : 'text-[var(--accent-ei)]'}`}>
+                      <span 
+                        className={`text-lg font-black drop-shadow-sm ${isAH ? 'text-[var(--accent-ah)]' : 'text-[var(--accent-ei)]'}`}
+                      >
                         {intake.dosage}
                       </span>
                       <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
-                      <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
+                      <span className="text-xs font-bold text-[var(--text-primary)] opacity-70">{formatTime(intake.timestamp)}</span>
                       {subtypeBadge && SubtypeIcon && (
                         <span
-                          className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+                          className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white shadow-sm"
                           style={{ backgroundColor: subtypeBadge.color }}
                         >
                           <span className="flex items-center gap-0.5 text-[10px]">
@@ -286,16 +310,21 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                     </div>
                   </div>
                   <div
-                    className={`absolute w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 ${
+                    className={`absolute w-3.5 h-3.5 rounded-full border-2 border-white shadow-md ${
                       isAH ? '-right-1.5' : '-left-1.5'
                     } ${isAH ? 'bg-[var(--accent-ah)]' : 'bg-[var(--accent-ei)]'}`}
+                    style={{ zIndex: 21 }}
                   />
                 </div>
               );
             })}
 
-            <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-              <span className="px-4 py-1 rounded-full bg-black/5 text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm">
+            {/* Day label - z-index 35 (highest, always visible) */}
+            <div 
+              className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none"
+              style={{ zIndex: 35 }}
+            >
+              <span className="px-4 py-1.5 rounded-full bg-black/10 backdrop-blur-md text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest shadow-sm border border-white/10">
                 {formatViewedDate(day.date)}
               </span>
             </div>

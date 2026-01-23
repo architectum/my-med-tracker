@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Notification from './components/Notification';
 import ThemeSelector from './components/ThemeSelector';
 import IntakeDetailsModal from './components/IntakeDetailsModal';
@@ -76,18 +76,17 @@ export default function App() {
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col transition-colors duration-500 app-root"
+      className="h-dvh w-screen overflow-hidden flex flex-col transition-colors duration-500 app-root"
       style={{ background: `linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end))` }}
     >
       {notification && <Notification message={notification} onClose={() => setNotification(null)} />}
 
       {/* Header */}
-      <header className="p-3 flex justify-end items-center">
+      <header className="app-header p-3 flex justify-end items-center">
         <button
           type="button"
           onClick={() => setShowSettings(true)}
-          className="w-10 h-10 rounded-full border border-[var(--border)] text-[var(--text-primary)] shadow-md hover:scale-105 transition-transform"
-          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
+          className="settings-btn"
           aria-label="Open settings"
         >
           <span className="text-lg">⚙️</span>
@@ -95,8 +94,8 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow min-h-0 flex flex-col gap-4 max-w-lg mx-auto w-full px-4 overflow-hidden flex-[1_1_0%]">
-        <div className="flex gap-3">
+      <main className="main-content">
+        <div className="cards-container">
           <MedTrackerCard
             title="AH"
             onAddSuccess={setNotification}
@@ -117,13 +116,10 @@ export default function App() {
           />
         </div>
 
-        <div
-          className="flex-grow min-h-0 backdrop-blur-md rounded-t-[2.5rem] pt-6 shadow-2xl border-x border-t border-[var(--border)] flex flex-col overflow-hidden flex-[1_1_0%]"
-          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
-        >
-          <h2 className="text-center text-xs font-black text-[var(--text-secondary)] tracking-[0.3em] uppercase mb-2">{timelineHeading}</h2>
+        <div className="timeline-container">
+          <h2 className="timeline-heading">{timelineHeading}</h2>
           {activeTimeSelection && (
-            <div className="text-center text-[10px] font-semibold text-[var(--text-secondary)] mb-2">
+            <div className="time-selection-hint">
               Оберіть час на таймлайні
             </div>
           )}
@@ -137,25 +133,25 @@ export default function App() {
         </div>
       </main>
 
+      {/* Settings Modal */}
       {showSettings && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm"
+          className="settings-overlay"
           onClick={() => setShowSettings(false)}
         >
           <div
-            className="mt-16 w-[min(92vw,520px)] max-h-[80vh] overflow-y-auto rounded-3xl border border-[var(--border)] p-5 shadow-2xl"
-            style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
+            className="settings-modal custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="settings-header">
               <div>
-                <h3 className="text-lg font-black text-[var(--text-primary)]">Settings</h3>
-                <p className="text-xs font-semibold text-[var(--text-secondary)] mt-1">Current theme: {currentTheme.name}</p>
+                <h3 className="settings-title">Settings</h3>
+                <p className="settings-subtitle">Current theme: {currentTheme.name}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowSettings(false)}
-                className="w-8 h-8 rounded-full border border-[var(--border)] text-[var(--text-primary)] flex items-center justify-center"
+                className="close-btn"
                 aria-label="Close settings"
               >
                 ✕
@@ -163,7 +159,7 @@ export default function App() {
             </div>
 
             <div className="mb-3">
-              <h4 className="text-xs font-black text-[var(--text-secondary)] uppercase tracking-[0.3em]">Theme</h4>
+              <h4 className="section-title">Theme</h4>
             </div>
 
             <ThemeSelector
@@ -175,6 +171,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Intake Details Modal */}
       {activeIntake && (
         <IntakeDetailsModal
           intake={activeIntake}
