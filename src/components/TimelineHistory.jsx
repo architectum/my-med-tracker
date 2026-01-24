@@ -189,28 +189,30 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             }}
           >
             {/* Markers */}
-            {[...Array(24 * 6)].map((_, i) => {
-              const mins = i * 10;
-              const top = ((1440 - mins) / 1440) * 100;
-              const isMajor = mins % 180 === 0;
-              return (
-                <div key={i} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
-                  <div className={`h-[1px] bg-[var(--marker-color)] opacity-60 ${isMajor ? 'w-6' : 'w-3'}`} />
-                  {isMajor && (
-                    <span className="ml-2 text-[10px] font-bold text-[var(--marker-color)]">
-                      {String(Math.floor(mins / 60)).padStart(2, '0')}:00
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+            <div className="absolute inset-0 pointer-events-none z-0">
+              {[...Array(24 * 6)].map((_, i) => {
+                const mins = i * 10;
+                const top = ((1440 - mins) / 1440) * 100;
+                const isMajor = mins % 180 === 0;
+                return (
+                  <div key={i} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
+                    <div className={`h-[1px] bg-[var(--marker-color)] opacity-60 ${isMajor ? 'w-6' : 'w-3'}`} />
+                    {isMajor && (
+                      <span className="ml-2 text-[10px] font-bold text-[var(--marker-color)]">
+                        {String(Math.floor(mins / 60)).padStart(2, '0')}:00
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Central Line */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-[var(--timeline-line)] -translate-x-1/2 opacity-90 shadow-[0_0_8px_var(--timeline-line)]" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-[var(--timeline-line)] -translate-x-1/2 opacity-90 shadow-[0_0_8px_var(--timeline-line)] z-0" />
 
             {/* Current Time Line */}
             {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
+              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
                 <div className="w-full h-px bg-[var(--accent-ah)] opacity-50 shadow-[0_0_8px_var(--accent-ah)]" />
                 <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ah)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
                   {formatTime(currentTime)}
@@ -230,7 +232,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
 
             {/* Selected Time Line */}
             {isSelectingTime && selectedLine && selectedLine.date.getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: `${getTopFromMins(selectedLine.mins)}%` }}>
+              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(selectedLine.mins)}%` }}>
                 <div className="w-full h-px bg-[var(--accent-ei)] opacity-80 shadow-[0_0_10px_var(--accent-ei)]" />
                 <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ei)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
                   {formatTime(new Date(day.date.getTime() + selectedLine.mins * 60000))}
@@ -239,61 +241,63 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             )}
 
             {/* Intakes */}
-            {day.intakes.map((intake) => {
-              const isAH = intake.patientId === 'AH';
-              const isSelected = selectedId === intake.id;
-              const top = getTimeTop(intake.timestamp);
+            <div className="absolute inset-0 z-20">
+              {day.intakes.map((intake) => {
+                const isAH = intake.patientId === 'AH';
+                const isSelected = selectedId === intake.id;
+                const top = getTimeTop(intake.timestamp);
 
-              const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
-              const SubtypeIcon = subtypeBadge?.icon;
+                const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
+                const SubtypeIcon = subtypeBadge?.icon;
 
-              return (
-                <div
-                  key={intake.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectIntake(isSelected ? null : intake);
-                  }}
-                  className={`absolute flex items-center transition-all duration-300 cursor-pointer ${
-                    isAH ? 'right-1/2 pr-4 justify-end' : 'left-1/2 pl-4'
-                  } ${selectedId && !isSelected ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}
-                  style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '45%' }}
-                >
+                return (
                   <div
-                    className={`flex flex-col ${isAH ? 'items-end' : 'items-start'} ${
-                      isSelected ? 'bg-white/10 p-2 rounded-2xl ring-1 ring-[var(--border)]' : ''
-                    }`}
+                    key={intake.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectIntake(isSelected ? null : intake);
+                    }}
+                    className={`absolute flex items-center transition-all duration-300 cursor-pointer ${
+                      isAH ? 'right-1/2 pr-4 justify-end' : 'left-1/2 pl-4'
+                    } ${selectedId && !isSelected ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}
+                    style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '45%' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-black ${isAH ? 'text-[var(--accent-ah)]' : 'text-[var(--accent-ei)]'}`}>
-                        {intake.dosage}
-                      </span>
-                      <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
-                      <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
-                      {subtypeBadge && SubtypeIcon && (
-                        <span
-                          className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
-                          style={{ backgroundColor: subtypeBadge.color }}
-                        >
-                          <span className="flex items-center gap-0.5 text-[10px]">
-                            <SubtypeIcon className="text-[10px]" />
-                            {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
-                          </span>
-                          {subtypeBadge.label}
+                    <div
+                      className={`flex flex-col ${isAH ? 'items-end' : 'items-start'} ${
+                        isSelected ? 'bg-white/10 p-2 rounded-2xl ring-1 ring-[var(--border)]' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-black ${isAH ? 'text-[var(--accent-ah)]' : 'text-[var(--accent-ei)]'}`}>
+                          {intake.dosage}
                         </span>
-                      )}
+                        <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
+                        <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
+                        {subtypeBadge && SubtypeIcon && (
+                          <span
+                            className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+                            style={{ backgroundColor: subtypeBadge.color }}
+                          >
+                            <span className="flex items-center gap-0.5 text-[10px]">
+                              <SubtypeIcon className="text-[10px]" />
+                              {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
+                            </span>
+                            {subtypeBadge.label}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <div
+                      className={`absolute w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 ${
+                        isAH ? '-right-1.5' : '-left-1.5'
+                      } ${isAH ? 'bg-[var(--accent-ah)]' : 'bg-[var(--accent-ei)]'}`}
+                    />
                   </div>
-                  <div
-                    className={`absolute w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 ${
-                      isAH ? '-right-1.5' : '-left-1.5'
-                    } ${isAH ? 'bg-[var(--accent-ah)]' : 'bg-[var(--accent-ei)]'}`}
-                  />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
 
-            <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none">
+            <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-30">
               <span className="px-4 py-1 rounded-full bg-black/5 text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm">
                 {formatViewedDate(day.date)}
               </span>
