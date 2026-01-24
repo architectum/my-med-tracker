@@ -42,12 +42,12 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!isSelectingTime) return;
-    if (selectedLine) return;
-    const now = new Date();
-    setSelectedLine({ date: getStartOfDay(now), mins: now.getHours() * 60 + now.getMinutes() });
-  }, [isSelectingTime, selectedLine]);
+  const effectiveSelectedLine = useMemo(() => {
+    if (!isSelectingTime) return null;
+    if (selectedLine) return selectedLine;
+    const now = currentTime;
+    return { date: getStartOfDay(now), mins: now.getHours() * 60 + now.getMinutes() };
+  }, [currentTime, isSelectingTime, selectedLine]);
 
   const groupedByDay = useMemo(() => {
     const groups = {};
@@ -302,8 +302,13 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             )}
 
             {/* Selected Time Line */}
-            {isSelectingTime && selectedLine && selectedLine.date.getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(selectedLine.mins)}%` }}>
+            {isSelectingTime &&
+              effectiveSelectedLine &&
+              effectiveSelectedLine.date.getTime() === day.date.getTime() && (
+              <div
+                className="absolute left-0 right-0 z-10 pointer-events-none"
+                style={{ top: `${getTopFromMins(effectiveSelectedLine.mins)}%` }}
+              >
                 <div className="w-full h-px" style={{ background: 'var(--accent-ei)', opacity: 0.35 }} />
                 <div
                   className="absolute left-1/2 -translate-x-1/2 -top-4 px-4 py-1 rounded-full text-[10px] font-black"
@@ -314,7 +319,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                     boxShadow: '0 10px 24px var(--shadow-color)'
                   }}
                 >
-                  {formatTime(new Date(day.date.getTime() + selectedLine.mins * 60000))}
+                  {formatTime(new Date(day.date.getTime() + effectiveSelectedLine.mins * 60000))}
                 </div>
               </div>
             )}
