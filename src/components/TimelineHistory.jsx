@@ -5,17 +5,6 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
-const hexToRgba = (hex, alpha) => {
-  if (!hex || typeof hex !== 'string') return `rgba(0,0,0,${alpha})`;
-  const h = hex.replace('#', '').trim();
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  if (full.length !== 6) return `rgba(0,0,0,${alpha})`;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
 const SUBTYPE_BADGES = {
   IV: { label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
   IM: { label: 'IM', icon: FaSyringe, color: '#BA68C8' },
@@ -26,7 +15,6 @@ const SUBTYPE_BADGES = {
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
   const [intakes, setIntakes] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [hoverLine, setHoverLine] = useState(null);
   const [selectedLine, setSelectedLine] = useState(null);
   const isPointerDown = useRef(false);
   const scrollRef = useRef(null);
@@ -119,6 +107,13 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     return Math.round(ratio * 1440);
   };
 
+  const formatDurationHM = (minutesTotal) => {
+    const total = Math.max(0, Math.round(minutesTotal));
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    return `${h}:${String(m).padStart(2, '0')}`;
+  };
+
   const getDayFromPointer = (clientY) => {
     if (!dayRefs.current.length) return null;
     for (let i = 0; i < dayRefs.current.length; i += 1) {
@@ -130,13 +125,6 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
       }
     }
     return null;
-  };
-
-  const updateHoverFromPointer = (clientY) => {
-    const target = getDayFromPointer(clientY);
-    if (!target) return;
-    const mins = getMinutesFromPointer(target.rect, clientY);
-    setHoverLine({ date: target.day.date, mins });
   };
 
   const updateSelectionFromPointer = (clientY) => {
@@ -151,7 +139,6 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
 
   const handlePointerMove = (e) => {
     if (!e.clientY) return;
-    updateHoverFromPointer(e.clientY);
     if (isPointerDown.current) {
       updateSelectionFromPointer(e.clientY);
     }
@@ -224,6 +211,78 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
               })}
             </div>
 
+            {/* Gaps: time passed between two adjacent intakes (AH left, EI right) */}
+            <div className="absolute inset-0 pointer-events-none z-0">
+              {(() => {
+                const sortedByPatient = (patientId) =>
+                  day.intakes
+                    .filter((i) => i.patientId === patientId)
+                    .slice()
+                    .sort((a, b) => b.timestamp - a.timestamp);
+
+                const buildGaps = (items) =>
+                  items.slice(0, -1).map((current, idx) => {
+                    const next = items[idx + 1];
+
+                    const top1 = getTimeTop(current.timestamp);
+                    const top2 = getTimeTop(next.timestamp);
+                    const top = (top1 + top2) / 2;
+
+                    const minutesPassed = Math.abs((current.timestamp - next.timestamp) / 60000);
+
+                    return {
+                      id: `${current.id}__${next.id}`,
+                      top,
+                      label: formatDurationHM(minutesPassed)
+                    };
+                  });
+
+                const ahGaps = buildGaps(sortedByPatient('AH'));
+                const eiGaps = buildGaps(sortedByPatient('EI'));
+
+                const commonStyle = {
+                  color: 'var(--text-secondary)',
+                  opacity: 0.28,
+                  fontSize: '22px',
+                  fontWeight: 800,
+                  letterSpacing: '0.02em',
+                  textShadow: '0 1px 0 rgba(0,0,0,0.08)'
+                };
+
+                return (
+                  <>
+                    {ahGaps.map((g) => (
+                      <div
+                        key={`ah-gap-${g.id}`}
+                        className="absolute left-1/2 whitespace-nowrap"
+                        style={{
+                          top: `${g.top}%`,
+                          transform: 'translate(-100%, -50%) translateX(-12px)',
+                          ...commonStyle
+                        }}
+                      >
+                        {g.label}
+                      </div>
+                    ))}
+
+                    {eiGaps.map((g) => (
+                      <div
+                        key={`ei-gap-${g.id}`}
+                        className="absolute left-1/2 whitespace-nowrap"
+                        style={{
+                          top: `${g.top}%`,
+                          transform: 'translate(0, -50%) translateX(12px)',
+                          ...commonStyle
+                        }}
+                      >
+                        {g.label}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
+
             {/* Central Line */}
             <div
               className="absolute left-1/2 top-6 bottom-6 -translate-x-1/2 z-0"
@@ -239,13 +298,6 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
               <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
                 <div className="w-full h-px" style={{ background: 'var(--accent-ah)', opacity: 0.18 }} />
-              </div>
-            )}
-
-            {/* Hover Line */}
-            {hoverLine && hoverLine.date.getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(hoverLine.mins)}%` }}>
-                <div className="w-full h-px" style={{ background: 'var(--marker-color)', opacity: 0.2 }} />
               </div>
             )}
 
@@ -343,7 +395,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
 
             <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-30">
               <span
-                className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                className="px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest"
                 style={{ background: 'transparent', color: 'var(--text-secondary)', opacity: 0.75 }}
               >
                 {formatViewedDate(day.date)}
