@@ -114,6 +114,18 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     return `${h}:${String(m).padStart(2, '0')}`;
   };
 
+  const getAbsoluteYWithinTimeline = useCallback(
+    (dayIndexByStartMs, dateObj) => {
+      const dayStart = getStartOfDay(dateObj).getTime();
+      const dayIdx = dayIndexByStartMs.get(dayStart);
+      if (dayIdx === undefined) return null;
+      const mins = dateObj.getHours() * 60 + dateObj.getMinutes();
+      const topPercent = getTopFromMins(mins);
+      return dayIdx * DAY_VIEWPORT_HEIGHT_PX + (topPercent / 100) * DAY_VIEWPORT_HEIGHT_PX;
+    },
+    [DAY_VIEWPORT_HEIGHT_PX]
+  );
+
   const lastPastIntakeIdByPatient = useMemo(() => {
     const now = currentTime;
     const pick = (patientId) => {
@@ -194,6 +206,104 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
       onPointerUp={handlePointerUp}
     >
       <div className="relative">
+        {/* Gaps: time passed between adjacent intakes across the whole timeline (AH left, EI right) */}
+        <div className="absolute inset-0 pointer-events-none z-0">
+          {(() => {
+            const dayIndexByStartMs = new Map(sortedDays.map((d, idx) => [d.date.getTime(), idx]));
+
+            const buildPatientItems = (patientId) =>
+              intakes
+                .filter((i) => i.patientId === patientId)
+                .filter((i) => i.timestamp instanceof Date)
+                .slice()
+                .sort((a, b) => b.timestamp - a.timestamp);
+
+            const commonStyle = {
+              color: 'var(--text-secondary)',
+              opacity: 0.18,
+              fontSize: '32px',
+              fontWeight: 800,
+              letterSpacing: '0.02em',
+              textShadow: '0 1px 0 rgba(0,0,0,0.08)'
+            };
+
+            const buildGapLabels = (patientId) => {
+              const items = buildPatientItems(patientId);
+              const labels = [];
+
+              // Between each two intakes (even across different days)
+              for (let idx = 0; idx < items.length - 1; idx += 1) {
+                const a = items[idx];
+                const b = items[idx + 1];
+                const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, a.timestamp);
+                const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, b.timestamp);
+                if (y1 == null || y2 == null) continue;
+                const minutesPassed = Math.abs((a.timestamp - b.timestamp) / 60000);
+                if (minutesPassed < 1) continue;
+                labels.push({
+                  id: `${a.id}__${b.id}`,
+                  y: (y1 + y2) / 2,
+                  label: formatDurationHM(minutesPassed)
+                });
+              }
+
+              // Between last past intake and now
+              const lastPast = items.find((i) => i.timestamp.getTime() <= currentTime.getTime());
+              if (lastPast) {
+                const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, currentTime);
+                const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, lastPast.timestamp);
+                if (y1 != null && y2 != null) {
+                  const minutesPassed = Math.abs((currentTime - lastPast.timestamp) / 60000);
+                  if (minutesPassed >= 1) {
+                    labels.push({
+                      id: `${lastPast.id}__now`,
+                      y: (y1 + y2) / 2,
+                      label: formatDurationHM(minutesPassed)
+                    });
+                  }
+                }
+              }
+
+              return labels;
+            };
+
+            const ahLabels = buildGapLabels('AH');
+            const eiLabels = buildGapLabels('EI');
+
+            return (
+              <>
+                {ahLabels.map((g) => (
+                  <div
+                    key={`ah-gap-${g.id}`}
+                    className="absolute left-1/2 whitespace-nowrap"
+                    style={{
+                      top: `${g.y}px`,
+                      transform: 'translate(-100%, -50%) translateX(-12px)',
+                      ...commonStyle
+                    }}
+                  >
+                    {g.label}
+                  </div>
+                ))}
+
+                {eiLabels.map((g) => (
+                  <div
+                    key={`ei-gap-${g.id}`}
+                    className="absolute left-1/2 whitespace-nowrap"
+                    style={{
+                      top: `${g.y}px`,
+                      transform: 'translate(0, -50%) translateX(12px)',
+                      ...commonStyle
+                    }}
+                  >
+                    {g.label}
+                  </div>
+                ))}
+              </>
+            );
+          })()}
+        </div>
+
         {sortedDays.map((day, index) => (
           <div
             key={day.date.getTime()}
@@ -227,136 +337,6 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                   </div>
                 );
               })}
-            </div>
-
-            {/* Gaps: time passed between two adjacent intakes (AH left, EI right) */}
-            <div className="absolute inset-0 pointer-events-none z-0">
-              {(() => {
-                const isToday = getStartOfDay(currentTime).getTime() === day.date.getTime();
-
-                const sortedByPatient = (patientId) =>
-                  day.intakes
-                    .filter((i) => i.patientId === patientId)
-                    .slice()
-                    .sort((a, b) => b.timestamp - a.timestamp);
-
-                const buildGaps = (items) =>
-                  items.slice(0, -1).map((current, idx) => {
-                    const next = items[idx + 1];
-
-                    const top1 = getTimeTop(current.timestamp);
-                    const top2 = getTimeTop(next.timestamp);
-                    const top = (top1 + top2) / 2;
-
-                    const minutesPassed = Math.abs((current.timestamp - next.timestamp) / 60000);
-
-                    return {
-                      id: `${current.id}__${next.id}`,
-                      top,
-                      label: formatDurationHM(minutesPassed)
-                    };
-                  });
-
-                const ahGaps = buildGaps(sortedByPatient('AH'));
-                const eiGaps = buildGaps(sortedByPatient('EI'));
-
-                const buildNowGap = (patientId) => {
-                  if (!isToday) return null;
-                  const lastPast = day.intakes
-                    .filter((i) => i.patientId === patientId)
-                    .filter((i) => i.timestamp instanceof Date)
-                    .filter((i) => i.timestamp.getTime() <= currentTime.getTime())
-                    .slice()
-                    .sort((a, b) => b.timestamp - a.timestamp)[0];
-                  if (!lastPast) return null;
-
-                  const top1 = getTimeTop(lastPast.timestamp);
-                  const top2 = getTimeTop(currentTime);
-                  const top = (top1 + top2) / 2;
-                  const minutesPassed = Math.abs((currentTime - lastPast.timestamp) / 60000);
-
-                  // Avoid rendering a near-zero label when the last intake is essentially "now".
-                  if (minutesPassed < 1) return null;
-
-                  return {
-                    id: `${lastPast.id}__now`,
-                    top,
-                    label: formatDurationHM(minutesPassed)
-                  };
-                };
-
-                const ahNowGap = buildNowGap('AH');
-                const eiNowGap = buildNowGap('EI');
-
-                const commonStyle = {
-                  color: 'var(--text-secondary)',
-                  opacity: 0.22,
-                  fontSize: '28px',
-                  fontWeight: 800,
-                  letterSpacing: '0.02em',
-                  textShadow: '0 1px 0 rgba(0,0,0,0.08)'
-                };
-
-                return (
-                  <>
-                    {ahGaps.map((g) => (
-                      <div
-                        key={`ah-gap-${g.id}`}
-                        className="absolute left-1/2 whitespace-nowrap"
-                        style={{
-                          top: `${g.top}%`,
-                          transform: 'translate(-100%, -50%) translateX(-12px)',
-                          ...commonStyle
-                        }}
-                      >
-                        {g.label}
-                      </div>
-                    ))}
-
-                    {ahNowGap && (
-                      <div
-                        key={`ah-gap-${ahNowGap.id}`}
-                        className="absolute left-1/2 whitespace-nowrap"
-                        style={{
-                          top: `${ahNowGap.top}%`,
-                          transform: 'translate(-100%, -50%) translateX(-12px)',
-                          ...commonStyle
-                        }}
-                      >
-                        {ahNowGap.label}
-                      </div>
-                    )}
-
-                    {eiGaps.map((g) => (
-                      <div
-                        key={`ei-gap-${g.id}`}
-                        className="absolute left-1/2 whitespace-nowrap"
-                        style={{
-                          top: `${g.top}%`,
-                          transform: 'translate(0, -50%) translateX(12px)',
-                          ...commonStyle
-                        }}
-                      >
-                        {g.label}
-                      </div>
-                    ))}
-
-                    {eiNowGap && (
-                      <div
-                        key={`ei-gap-${eiNowGap.id}`}
-                        className="absolute left-1/2 whitespace-nowrap"
-                        style={{
-                          top: `${eiNowGap.top}%`,
-                          transform: 'translate(0, -50%) translateX(12px)',
-                          ...commonStyle
-                        }}
-                      >
-                        {eiNowGap.label}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
             </div>
 
             {/* Central Line */}
