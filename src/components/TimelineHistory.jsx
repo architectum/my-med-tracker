@@ -434,14 +434,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                         <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
                           {formatTime(intake.timestamp)}
                         </span>
-                        {sinceNowLabel && (
-                          <span
-                            className="ml-1 text-[10px] font-black"
-                            style={{ color: 'var(--text-secondary)', opacity: 0.7 }}
-                          >
-                            +{sinceNowLabel}
-                          </span>
-                        )}
+                        
                         {subtypeBadge && (
                           <span
                             className="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black"
