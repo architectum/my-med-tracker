@@ -203,7 +203,7 @@ const MedTrackerCard = ({
         </div>
 
         {/* Syringe Slider */}
-        <div className="w-full mb-8 px-1">
+        <div className="w-full mb-4 px-1">
           <SyringeSlider
             ref={syringeRef}
             value={sliderValue}

@@ -131,7 +131,7 @@ const SyringeSlider = forwardRef(({
       style={{
         position: 'relative',
         width: '100%',
-        height: '48px',
+        height: '36px',
         cursor: isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
         userSelect: 'none'
@@ -419,22 +419,6 @@ const SyringeSlider = forwardRef(({
         />
       </svg>
 
-      {/* Value display */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          fontSize: '11px',
-          fontWeight: 'bold',
-          color: 'var(--text-secondary)',
-          opacity: isDragging ? 1 : 0.7,
-          transition: 'opacity 0.2s'
-        }}
-      >
-        {Math.round(animatedValue)}%
-      </div>
     </div>
   );
 });
