@@ -14,6 +14,15 @@
   --timeline-line: #E0E0E0;
   --marker-color: #BDBDBD;
   --success-color: #81C784;
+
+  /* Derived surfaces (set/overridden by theme in App.jsx) */
+  --surface: rgba(255, 255, 255, 0.96);
+  --surface-2: rgba(248, 250, 252, 0.98);
+  --shadow-color: rgba(15, 23, 42, 0.18);
+  --shadow-color-strong: rgba(15, 23, 42, 0.28);
+  --header-overlay: rgba(0, 0, 0, 0.62);
+  --action-bg: rgba(0, 0, 0, 0.86);
+  --action-border: rgba(255, 255, 255, 0.12);
 }
 
 body {
@@ -40,6 +49,15 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--marker-color);
   border-radius: 10px;
+}
+
+/* Utility-ish helpers (kept minimal; Tailwind still drives most styling) */
+.shadow-soft {
+  box-shadow: 0 12px 30px var(--shadow-color);
+}
+
+.shadow-soft-strong {
+  box-shadow: 0 18px 44px var(--shadow-color-strong);
 }
 
 @keyframes slideIn {

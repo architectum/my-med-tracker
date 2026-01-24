@@ -71,6 +71,17 @@ export default function App() {
     root.style.setProperty('--timeline-bg-alt-start', currentTheme.timelineSecondaryBackground[0]);
     root.style.setProperty('--timeline-bg-alt-end', currentTheme.timelineSecondaryBackground[1]);
     root.style.setProperty('--success-color', currentTheme.success);
+
+    // --- Derived surfaces & shadows (keeps themes working without requiring new JSON keys)
+    const isDark = Boolean(currentTheme.isDark);
+    root.style.setProperty('--surface', isDark ? 'rgba(15, 23, 42, 0.66)' : 'rgba(255, 255, 255, 0.96)');
+    root.style.setProperty('--surface-2', isDark ? 'rgba(2, 6, 23, 0.55)' : 'rgba(248, 250, 252, 0.98)');
+    root.style.setProperty('--shadow-color', isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(15, 23, 42, 0.18)');
+    root.style.setProperty('--shadow-color-strong', isDark ? 'rgba(0, 0, 0, 0.72)' : 'rgba(15, 23, 42, 0.28)');
+    root.style.setProperty('--header-overlay', isDark ? 'rgba(0, 0, 0, 0.70)' : 'rgba(2, 6, 23, 0.70)');
+    root.style.setProperty('--action-bg', isDark ? 'rgba(0, 0, 0, 0.78)' : 'rgba(0, 0, 0, 0.82)');
+    root.style.setProperty('--action-border', isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.12)');
+
     localStorage.setItem('theme', currentTheme.name);
   }, [currentTheme]);
 
@@ -118,17 +129,17 @@ export default function App() {
         </div>
 
         <div
-          className="backdrop-blur-md rounded-t-[2.5rem] pt-6 shadow-2xl border-x border-t border-[var(--border)] flex flex-col overflow-hidden"
+          className="rounded-[2.5rem] pt-6 shadow-soft-strong border border-[var(--border)] flex flex-col overflow-hidden"
           style={{
-            background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))',
+            background: 'var(--surface)',
             // Fixed viewport for the timeline window.
             // One full day (24h) is mapped to this height; scrolling moves across days, not within a day.
             height: '600px'
           }}
         >
-          <h2 className="text-center text-xs font-black text-[var(--text-secondary)] tracking-[0.3em] uppercase mb-2">{timelineHeading}</h2>
+          <h2 className="text-center text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">{timelineHeading}</h2>
           {activeTimeSelection && (
-            <div className="text-center text-[10px] font-semibold text-[var(--text-secondary)] mb-2">
+            <div className="text-center text-xs font-semibold text-[var(--text-secondary)] mb-2">
               Оберіть час на таймлайні
             </div>
           )}

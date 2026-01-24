@@ -5,6 +5,17 @@ import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
+const hexToRgba = (hex, alpha) => {
+  if (!hex || typeof hex !== 'string') return `rgba(0,0,0,${alpha})`;
+  const h = hex.replace('#', '').trim();
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  if (full.length !== 6) return `rgba(0,0,0,${alpha})`;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const SUBTYPE_BADGES = {
   IV: { label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
   IM: { label: 'IM', icon: FaSyringe, color: '#BA68C8' },
@@ -170,7 +181,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
   return (
     <div
       ref={scrollRef}
-      className="flex-grow overflow-y-auto custom-scrollbar px-4 pb-20"
+      className="flex-grow overflow-y-auto custom-scrollbar px-5 pb-20"
       onClick={() => onSelectIntake(null)}
       onScroll={updateCurrentDayHeading}
       onPointerMove={handlePointerMove}
@@ -187,23 +198,25 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             className="relative"
             style={{
               height: `${DAY_VIEWPORT_HEIGHT_PX}px`,
-              background: `linear-gradient(180deg, ${
-                index % 2 === 0 ? 'var(--timeline-bg-start)' : 'var(--timeline-bg-alt-start)'
-              }, ${index % 2 === 0 ? 'var(--timeline-bg-end)' : 'var(--timeline-bg-alt-end)'})`
+              background: 'transparent'
             }}
           >
             {/* Markers */}
             <div className="absolute inset-0 pointer-events-none z-0">
-              {[...Array(24 * 6)].map((_, i) => {
-                const mins = i * 10;
+              {/* Center reference ticks */}
+              {[...Array(24)].map((_, hour) => {
+                const mins = hour * 60;
                 const top = ((1440 - mins) / 1440) * 100;
-                const isMajor = mins % 180 === 0;
+                const isLabel = mins % 180 === 0;
                 return (
-                  <div key={i} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
-                    <div className={`h-[1px] bg-[var(--marker-color)] opacity-60 ${isMajor ? 'w-6' : 'w-3'}`} />
-                    {isMajor && (
-                      <span className="ml-2 text-[10px] font-bold text-[var(--marker-color)]">
-                        {String(Math.floor(mins / 60)).padStart(2, '0')}:00
+                  <div key={hour} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
+                    <div className="h-px w-4" style={{ background: 'var(--marker-color)', opacity: 0.28 }} />
+                    {isLabel && (
+                      <span
+                        className="absolute -left-20 text-[10px] font-semibold"
+                        style={{ color: 'var(--marker-color)', opacity: 0.6 }}
+                      >
+                        {String(hour).padStart(2, '0')}:00
                       </span>
                     )}
                   </div>
@@ -212,33 +225,43 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             </div>
 
             {/* Central Line */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-[var(--timeline-line)] -translate-x-1/2 opacity-90 shadow-[0_0_8px_var(--timeline-line)] z-0" />
+            <div
+              className="absolute left-1/2 top-6 bottom-6 -translate-x-1/2 z-0"
+              style={{ width: '6px' }}
+            >
+              <div
+                className="absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full"
+                style={{ width: '4px', background: 'var(--timeline-line)', opacity: 0.35 }}
+              />
+            </div>
 
             {/* Current Time Line */}
             {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
               <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
-                <div className="w-full h-px bg-[var(--accent-ah)] opacity-50 shadow-[0_0_8px_var(--accent-ah)]" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ah)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
-                  {formatTime(currentTime)}
-                </div>
+                <div className="w-full h-px" style={{ background: 'var(--accent-ah)', opacity: 0.18 }} />
               </div>
             )}
 
             {/* Hover Line */}
             {hoverLine && hoverLine.date.getTime() === day.date.getTime() && (
               <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(hoverLine.mins)}%` }}>
-                <div className="w-full h-px bg-[var(--marker-color)] opacity-40" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--marker-color)] text-[var(--text-primary)] text-[10px] font-bold rounded-l-md shadow-sm opacity-80">
-                  {formatTime(new Date(day.date.getTime() + hoverLine.mins * 60000))}
-                </div>
+                <div className="w-full h-px" style={{ background: 'var(--marker-color)', opacity: 0.2 }} />
               </div>
             )}
 
             {/* Selected Time Line */}
             {isSelectingTime && selectedLine && selectedLine.date.getTime() === day.date.getTime() && (
               <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTopFromMins(selectedLine.mins)}%` }}>
-                <div className="w-full h-px bg-[var(--accent-ei)] opacity-80 shadow-[0_0_10px_var(--accent-ei)]" />
-                <div className="absolute right-0 -top-4 px-2 py-0.5 bg-[var(--accent-ei)] text-white text-[10px] font-bold rounded-l-md shadow-sm">
+                <div className="w-full h-px" style={{ background: 'var(--accent-ei)', opacity: 0.35 }} />
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 -top-4 px-4 py-1 rounded-full text-[10px] font-black"
+                  style={{
+                    color: 'var(--text-primary)',
+                    background: 'color-mix(in srgb, var(--success-color) 22%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--success-color) 55%, transparent)',
+                    boxShadow: '0 10px 24px var(--shadow-color)'
+                  }}
+                >
                   {formatTime(new Date(day.date.getTime() + selectedLine.mins * 60000))}
                 </div>
               </div>
@@ -251,6 +274,11 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                 const isSelected = selectedId === intake.id;
                 const top = getTimeTop(intake.timestamp);
 
+                const mainAccent = isAH ? 'var(--accent-ah)' : 'var(--accent-ei)';
+                const bubbleBg = isAH
+                  ? 'color-mix(in srgb, var(--accent-ah) 14%, transparent)'
+                  : 'color-mix(in srgb, var(--accent-ei) 14%, transparent)';
+
                 const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
                 const SubtypeIcon = subtypeBadge?.icon;
 
@@ -261,48 +289,63 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       e.stopPropagation();
                       onSelectIntake(isSelected ? null : intake);
                     }}
-                    className={`absolute flex items-center transition-all duration-300 cursor-pointer ${
-                      isAH ? 'right-1/2 pr-4 justify-end' : 'left-1/2 pl-4'
-                    } ${selectedId && !isSelected ? 'opacity-30 scale-95' : 'opacity-100 scale-100'}`}
-                    style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '45%' }}
+                    className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
+                      isAH ? 'right-1/2 pr-5 justify-end' : 'left-1/2 pl-5'
+                    } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
+                    style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '46%' }}
                   >
                     <div
-                      className={`flex flex-col ${isAH ? 'items-end' : 'items-start'} ${
-                        isSelected ? 'bg-white/10 p-2 rounded-2xl ring-1 ring-[var(--border)]' : ''
-                      }`}
+                      className="px-3 py-2 rounded-2xl border"
+                      style={{
+                        background: bubbleBg,
+                        borderColor: 'rgba(255,255,255,0.55)',
+                        boxShadow: isSelected ? '0 18px 44px var(--shadow-color-strong)' : '0 10px 24px var(--shadow-color)',
+                        transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                        backdropFilter: 'blur(8px)'
+                      }}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`text-lg font-black ${isAH ? 'text-[var(--accent-ah)]' : 'text-[var(--accent-ei)]'}`}>
+                        <span className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>
                           {intake.dosage}
                         </span>
-                        <span className="text-[10px] font-bold text-[var(--text-secondary)]">{intake.unit}</span>
-                        <span className="text-xs font-bold text-[var(--text-primary)] opacity-60">{formatTime(intake.timestamp)}</span>
-                        {subtypeBadge && SubtypeIcon && (
+                        <span className="text-[10px] font-black" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+                          {intake.unit}
+                        </span>
+                        <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+                          {formatTime(intake.timestamp)}
+                        </span>
+                        {subtypeBadge && (
                           <span
-                            className="ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
-                            style={{ backgroundColor: subtypeBadge.color }}
+                            className="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black"
+                            style={{ backgroundColor: subtypeBadge.color, color: 'white' }}
                           >
-                            <span className="flex items-center gap-0.5 text-[10px]">
-                              <SubtypeIcon className="text-[10px]" />
-                              {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
-                            </span>
+                            {SubtypeIcon && <SubtypeIcon className="text-[10px]" />}
+                            {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
                             {subtypeBadge.label}
                           </span>
                         )}
                       </div>
                     </div>
                     <div
-                      className={`absolute w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 ${
+                      className={`absolute w-2.5 h-2.5 rounded-full border-2 z-10 ${
                         isAH ? '-right-1.5' : '-left-1.5'
-                      } ${isAH ? 'bg-[var(--accent-ah)]' : 'bg-[var(--accent-ei)]'}`}
+                      }`}
+                      style={{
+                        background: `color-mix(in srgb, ${mainAccent} 85%, white)`,
+                        borderColor: 'var(--surface-2)',
+                        boxShadow: `0 0 16px ${mainAccent}`
+                      }}
                     />
                   </div>
                 );
               })}
             </div>
 
-            <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none z-30">
-              <span className="px-4 py-1 rounded-full bg-black/5 text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest backdrop-blur-sm">
+            <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-30">
+              <span
+                className="px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                style={{ background: 'transparent', color: 'var(--text-secondary)', opacity: 0.75 }}
+              >
                 {formatViewedDate(day.date)}
               </span>
             </div>
