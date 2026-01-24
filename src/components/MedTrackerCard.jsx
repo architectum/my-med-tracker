@@ -81,7 +81,10 @@ const MedTrackerCard = ({
   };
 
   return (
-    <div className="flex-1 bg-white rounded-[2rem] p-4 shadow-xl relative flex flex-col gap-3 transition-all duration-300 hover:shadow-2xl">
+    <div
+      className="flex-1 rounded-[2rem] p-4 shadow-xl relative flex flex-col gap-3 transition-all duration-300 hover:shadow-2xl"
+      style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
+    >
       {/* Header */}
       <div className="flex justify-between items-center">
         <div 
@@ -91,16 +94,20 @@ const MedTrackerCard = ({
           {title}
         </div>
 
-        <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
+        <div
+          className="flex rounded-lg p-1 gap-1 border border-[var(--border)]"
+          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
+        >
           {['mg', 'ml'].map((u) => (
             <button
               key={u}
               onClick={() => handleUnitChange(u)}
               className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
                 unit === u
-                  ? 'bg-[#22c55e] text-white shadow-sm'
-                  : 'text-gray-400 hover:text-gray-600'
+                  ? 'text-white shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
+              style={unit === u ? { backgroundColor: 'var(--success-color)' } : {}}
             >
               {u.toUpperCase()}
             </button>
@@ -114,21 +121,25 @@ const MedTrackerCard = ({
           const isActive = subtype === option.value;
           const Icon = option.icon;
           return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setSubtype(option.value)}
-              className={`w-10 h-10 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${
-                isActive 
-                  ? 'text-white shadow-md scale-110' 
-                  : 'bg-white text-gray-300 border border-gray-100 hover:border-gray-200'
-              }`}
-              style={isActive ? { backgroundColor: option.color } : {}}
-            >
-              <div className="flex items-center justify-center h-4">
-                <Icon className={isActive ? "text-base" : "text-base"} />
-                {option.value === 'IV+PO' && <FaPills className="text-[8px] ml-0.5" />}
-              </div>
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSubtype(option.value)}
+                className={`w-10 h-10 rounded-full flex flex-col items-center justify-center transition-all duration-300 ${
+                  isActive 
+                    ? 'text-white shadow-md scale-110' 
+                    : 'text-[var(--text-secondary)] border border-[var(--border)]'
+                }`}
+                style={
+                  isActive
+                    ? { backgroundColor: option.color }
+                    : { background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }
+                }
+              >
+                <div className="flex items-center justify-center h-4">
+                  <Icon className={isActive ? "text-base" : "text-base"} />
+                  {option.value === 'IV+PO' && <FaPills className="text-[8px] ml-0.5" />}
+                </div>
               <span className="text-[7px] font-bold mt-0.5">{option.label}</span>
             </button>
           );
@@ -139,17 +150,19 @@ const MedTrackerCard = ({
       <div className="flex items-center justify-between px-2">
         <button
           onClick={() => adjustDosage(-1)}
-          className="w-8 h-8 rounded-full bg-gray-50 text-gray-400 text-lg flex items-center justify-center hover:bg-gray-100 transition-colors shadow-sm"
+          className="w-8 h-8 rounded-full text-[var(--text-secondary)] text-lg flex items-center justify-center transition-colors shadow-sm border border-[var(--border)]"
+          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
         >
           -
         </button>
         <div className="text-center">
-          <span className="text-3xl font-black text-gray-800">{currentDosage}</span>
-          <span className="text-sm font-bold text-gray-300 ml-1">{UNIT_CONFIG[unit].label}</span>
+          <span className="text-3xl font-black text-[var(--text-primary)]">{currentDosage}</span>
+          <span className="text-sm font-bold text-[var(--text-secondary)] opacity-60 ml-1">{UNIT_CONFIG[unit].label}</span>
         </div>
         <button
           onClick={() => adjustDosage(1)}
-          className="w-8 h-8 rounded-full bg-gray-50 text-gray-400 text-lg flex items-center justify-center hover:bg-gray-100 transition-colors shadow-sm"
+          className="w-8 h-8 rounded-full text-[var(--text-secondary)] text-lg flex items-center justify-center transition-colors shadow-sm border border-[var(--border)]"
+          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
         >
           +
         </button>
@@ -172,21 +185,23 @@ const MedTrackerCard = ({
       <div className="flex flex-col items-center gap-0.5">
         <button
           onClick={() => (isSelectingTime ? onCancelTimeSelection(title) : onStartTimeSelection(title))}
-          className="text-[9px] font-bold text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-colors"
+          className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-widest hover:text-[var(--text-primary)] transition-colors"
         >
           {isSelectingTime ? (selectedTime ? 'Змінити час' : 'Скасувати') : 'Вказати час'}
         </button>
         
-        <div className="text-lg font-bold text-gray-700 flex items-center gap-2">
+        <div className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
           {isSelectingTime && selectedTime ? (
             <>
               <span>{formatTime(selectedTime)}</span>
-              {selectedDateLabel && <span className="text-[10px] text-gray-400">{selectedDateLabel}</span>}
+              {selectedDateLabel && (
+                <span className="text-[10px] text-[var(--text-secondary)] opacity-70">{selectedDateLabel}</span>
+              )}
             </>
           ) : (
             <span>{formatTime(new Date())}</span>
           )}
-          <FaRegClock className="text-gray-400 text-base" />
+          <FaRegClock className="text-[var(--text-secondary)] text-base opacity-80" />
         </div>
       </div>
 
@@ -195,7 +210,7 @@ const MedTrackerCard = ({
         onClick={handleAddIntake}
         disabled={isAddDisabled}
         className={`w-full py-3 rounded-xl text-white font-bold text-base shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100`}
-        style={{ backgroundColor: '#4ade80' }}
+        style={{ backgroundColor: 'var(--success-color)' }}
       >
         + Додати
       </button>

@@ -3,7 +3,7 @@ import { GiWaterDrop } from 'react-icons/gi';
 import { FaSyringe, FaPills } from 'react-icons/fa6';
 import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase';
-import { DAY_HEIGHT, formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
+import { formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
 const SUBTYPE_BADGES = {
   IV: { label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
@@ -20,6 +20,10 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
   const isPointerDown = useRef(false);
   const scrollRef = useRef(null);
   const dayRefs = useRef([]);
+
+  // Fixed mapping: the visible timeline window represents exactly 24 hours.
+  // The parent container defines the viewport height; we just match it.
+  const DAY_VIEWPORT_HEIGHT_PX = 600;
 
   useEffect(() => {
     const q = query(collection(db, 'intakes'), orderBy('timestamp', 'desc'));
@@ -182,7 +186,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             }}
             className="relative"
             style={{
-              height: `${DAY_HEIGHT}px`,
+              height: `${DAY_VIEWPORT_HEIGHT_PX}px`,
               background: `linear-gradient(180deg, ${
                 index % 2 === 0 ? 'var(--timeline-bg-start)' : 'var(--timeline-bg-alt-start)'
               }, ${index % 2 === 0 ? 'var(--timeline-bg-end)' : 'var(--timeline-bg-alt-end)'})`

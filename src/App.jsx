@@ -75,7 +75,7 @@ export default function App() {
   }, [currentTheme]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col transition-colors duration-500" style={{ background: `linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end))` }}>
+    <div className="h-screen w-screen overflow-y-auto overflow-x-hidden flex flex-col transition-colors duration-500" style={{ background: `linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end))` }}>
       {notification && <Notification message={notification} onClose={() => setNotification(null)} />}
 
       {/* Header */}
@@ -95,7 +95,7 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow flex flex-col gap-4 max-w-3xl mx-auto w-full px-4 overflow-hidden">
+      <main className="flex-grow flex flex-col gap-4 max-w-3xl mx-auto w-full px-4 pb-6">
         <div className="flex gap-3">
           <MedTrackerCard
             title="AH"
@@ -118,8 +118,13 @@ export default function App() {
         </div>
 
         <div
-          className="flex-grow backdrop-blur-md rounded-t-[2.5rem] pt-6 shadow-2xl border-x border-t border-[var(--border)] flex flex-col overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))' }}
+          className="backdrop-blur-md rounded-t-[2.5rem] pt-6 shadow-2xl border-x border-t border-[var(--border)] flex flex-col overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))',
+            // Fixed viewport for the timeline window.
+            // One full day (24h) is mapped to this height; scrolling moves across days, not within a day.
+            height: '600px'
+          }}
         >
           <h2 className="text-center text-xs font-black text-[var(--text-secondary)] tracking-[0.3em] uppercase mb-2">{timelineHeading}</h2>
           {activeTimeSelection && (
