@@ -22,6 +22,8 @@ export default function App() {
   const [activeIntake, setActiveIntake] = useState(null);
   const [activeTimeSelection, setActiveTimeSelection] = useState(null);
   const [selectedTimeMap, setSelectedTimeMap] = useState({});
+  const [mobileCardIndex, setMobileCardIndex] = useState(0);
+  const touchStartX = React.useRef(null);
 
   const handleSelectIntake = (intake) => {
     if (!intake) {
@@ -55,6 +57,8 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
+    const isDark = Boolean(currentTheme.isDark);
+
     root.style.setProperty('--bg-gradient-start', currentTheme.backgroundGradient[0]);
     root.style.setProperty('--bg-gradient-end', currentTheme.backgroundGradient[1]);
     root.style.setProperty('--card-bg-start', currentTheme.cardBackground[0]);
@@ -73,7 +77,6 @@ export default function App() {
     root.style.setProperty('--success-color', currentTheme.success);
 
     // --- Derived surfaces & shadows (keeps themes working without requiring new JSON keys)
-    const isDark = Boolean(currentTheme.isDark);
     root.style.setProperty('--surface', isDark ? 'rgba(15, 23, 42, 0.66)' : 'rgba(255, 255, 255, 0.96)');
     root.style.setProperty('--surface-2', isDark ? 'rgba(2, 6, 23, 0.55)' : 'rgba(248, 250, 252, 0.98)');
     root.style.setProperty('--shadow-color', isDark ? 'rgba(0, 0, 0, 0.55)' : 'rgba(15, 23, 42, 0.18)');
@@ -81,6 +84,28 @@ export default function App() {
     root.style.setProperty('--header-overlay', isDark ? 'rgba(0, 0, 0, 0.70)' : 'rgba(2, 6, 23, 0.70)');
     root.style.setProperty('--action-bg', isDark ? 'rgba(0, 0, 0, 0.78)' : 'rgba(0, 0, 0, 0.82)');
     root.style.setProperty('--action-border', isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.12)');
+
+    // --- Subtype colors (theme-driven)
+    const subtype = currentTheme.subtypeColors || {};
+    root.style.setProperty('--subtype-iv', subtype.iv || (isDark ? '#4FC3F7' : '#3b82f6'));
+    root.style.setProperty('--subtype-im', subtype.im || (isDark ? '#BA68C8' : '#a855f7'));
+    root.style.setProperty('--subtype-po', subtype.po || (isDark ? '#FFB74D' : '#f59e0b'));
+    root.style.setProperty('--subtype-ivpo', subtype.ivpo || (isDark ? '#81C784' : '#22c55e'));
+
+    // --- Subtype panel (top of each card)
+    const subtypePanel = currentTheme.subtypePanel || {};
+    root.style.setProperty('--subtype-panel-bg', subtypePanel.bg || (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'));
+    root.style.setProperty(
+      '--subtype-panel-border',
+      subtypePanel.border || (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
+    );
+
+    // --- Add button colors (theme-driven; dark-on-light, light-on-dark)
+    const addButton = currentTheme.addButton || {};
+    root.style.setProperty('--add-btn-bg', addButton.bg || (isDark ? 'rgba(255,255,255,0.92)' : 'rgba(2, 6, 23, 0.86)'));
+    root.style.setProperty('--add-btn-text', addButton.text || (isDark ? 'rgba(2, 6, 23, 0.92)' : currentTheme.success));
+    root.style.setProperty('--add-btn-border', addButton.border || (isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.12)'));
+    root.style.setProperty('--add-btn-glow', addButton.glow || currentTheme.success);
 
     localStorage.setItem('theme', currentTheme.name);
   }, [currentTheme]);
@@ -107,7 +132,8 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-grow flex flex-col gap-4 max-w-3xl mx-auto w-full px-4 pb-6">
-        <div className="flex gap-3">
+        {/* Cards: desktop/tablet side-by-side */}
+        <div className="hidden sm:flex gap-3">
           <MedTrackerCard
             title="AH"
             onAddSuccess={setNotification}
@@ -126,6 +152,71 @@ export default function App() {
             onCancelTimeSelection={handleCancelTimeSelection}
             onResetTimeSelection={handleResetTimeSelection}
           />
+        </div>
+
+        {/* Cards: mobile carousel */}
+        <div className="sm:hidden">
+          <div
+            className="relative overflow-hidden"
+            onTouchStart={(e) => {
+              touchStartX.current = e.touches?.[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(e) => {
+              const start = touchStartX.current;
+              const end = e.changedTouches?.[0]?.clientX ?? null;
+              touchStartX.current = null;
+              if (start == null || end == null) return;
+              const dx = end - start;
+              const threshold = 50;
+              if (dx > threshold) setMobileCardIndex(0);
+              if (dx < -threshold) setMobileCardIndex(1);
+            }}
+          >
+            <div
+              className="flex transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(-${mobileCardIndex * 100}%)` }}
+            >
+              <div className="min-w-full">
+                <MedTrackerCard
+                  title="AH"
+                  onAddSuccess={setNotification}
+                  isSelectingTime={activeTimeSelection === 'AH'}
+                  selectedTime={selectedTimeMap.AH}
+                  onStartTimeSelection={handleStartTimeSelection}
+                  onCancelTimeSelection={handleCancelTimeSelection}
+                  onResetTimeSelection={handleResetTimeSelection}
+                />
+              </div>
+              <div className="min-w-full">
+                <MedTrackerCard
+                  title="EI"
+                  onAddSuccess={setNotification}
+                  isSelectingTime={activeTimeSelection === 'EI'}
+                  selectedTime={selectedTimeMap.EI}
+                  onStartTimeSelection={handleStartTimeSelection}
+                  onCancelTimeSelection={handleCancelTimeSelection}
+                  onResetTimeSelection={handleResetTimeSelection}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Dots */}
+          <div className="mt-2 flex justify-center gap-2">
+            {[0, 1].map((idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setMobileCardIndex(idx)}
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  background: idx === mobileCardIndex ? 'var(--text-primary)' : 'rgba(0,0,0,0.18)',
+                  opacity: idx === mobileCardIndex ? 0.8 : 0.45
+                }}
+                aria-label={idx === 0 ? 'Show AH card' : 'Show EI card'}
+              />
+            ))}
+          </div>
         </div>
 
         <div

@@ -6,10 +6,10 @@ import { db } from '../firebase';
 import { formatDateInput, formatTimeInput } from '../utils/time';
 
 const SUBTYPE_OPTIONS = [
-  { value: 'IV', label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
-  { value: 'IM', label: 'IM', icon: FaSyringe, color: '#BA68C8' },
-  { value: 'PO', label: 'PO', icon: FaPills, color: '#FFB74D' },
-  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop, color: '#81C784' }
+  { value: 'IV', label: 'IV', icon: GiWaterDrop, color: 'var(--subtype-iv)' },
+  { value: 'IM', label: 'IM', icon: FaSyringe, color: 'var(--subtype-im)' },
+  { value: 'PO', label: 'PO', icon: FaPills, color: 'var(--subtype-po)' },
+  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop, color: 'var(--subtype-ivpo)' }
 ];
 
 const IntakeDetailsModal = ({ intake, onClose }) => {

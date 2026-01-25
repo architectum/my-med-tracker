@@ -6,10 +6,10 @@ import { db } from '../firebase';
 import { formatTime, formatViewedDate, getStartOfDay } from '../utils/time';
 
 const SUBTYPE_BADGES = {
-  IV: { label: 'IV', icon: GiWaterDrop, color: '#4FC3F7' },
-  IM: { label: 'IM', icon: FaSyringe, color: '#BA68C8' },
-  PO: { label: 'PO', icon: FaPills, color: '#FFB74D' },
-  'IV+PO': { label: 'IV+PO', icon: GiWaterDrop, color: '#81C784' }
+  IV: { label: 'IV', icon: GiWaterDrop, color: 'var(--subtype-iv)' },
+  IM: { label: 'IM', icon: FaSyringe, color: 'var(--subtype-im)' },
+  PO: { label: 'PO', icon: FaPills, color: 'var(--subtype-po)' },
+  'IV+PO': { label: 'IV+PO', icon: GiWaterDrop, color: 'var(--subtype-ivpo)' }
 };
 
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
@@ -126,23 +126,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     [DAY_VIEWPORT_HEIGHT_PX]
   );
 
-  const lastPastIntakeIdByPatient = useMemo(() => {
-    const now = currentTime;
-    const pick = (patientId) => {
-      const candidates = intakes
-        .filter((i) => i.patientId === patientId)
-        .filter((i) => i.timestamp instanceof Date)
-        .filter((i) => i.timestamp.getTime() <= now.getTime())
-        .slice()
-        .sort((a, b) => b.timestamp - a.timestamp);
-      return candidates[0]?.id || null;
-    };
-
-    return {
-      AH: pick('AH'),
-      EI: pick('EI')
-    };
-  }, [currentTime, intakes]);
+  // NOTE: per-patient last-past intake is handled inside the absolute gap label renderer.
 
   const getDayFromPointer = (clientY) => {
     if (!dayRefs.current.length) return null;
@@ -387,12 +371,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                 const isSelected = selectedId === intake.id;
                 const top = getTimeTop(intake.timestamp);
 
-                const isLastPastForPatient =
-                  (isAH && lastPastIntakeIdByPatient.AH === intake.id) ||
-                  (!isAH && lastPastIntakeIdByPatient.EI === intake.id);
-                const sinceNowLabel = isLastPastForPatient
-                  ? formatDurationHM(Math.abs((currentTime - intake.timestamp) / 60000))
-                  : null;
+                // (Removed per lint): per-intake "since now" label is handled as large background gap labels.
 
                 const mainAccent = isAH ? 'var(--accent-ah)' : 'var(--accent-ei)';
                 const bubbleBg = isAH

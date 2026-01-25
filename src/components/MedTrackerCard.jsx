@@ -5,17 +5,8 @@ import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatTime, getStartOfDay } from '../utils/time';
 import SyringeSlider from './SyringeSlider';
-
-const hexToRgba = (hex, alpha) => {
-  if (!hex || typeof hex !== 'string') return `rgba(0,0,0,${alpha})`;
-  const h = hex.replace('#', '').trim();
-  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  if (full.length !== 6) return `rgba(0,0,0,${alpha})`;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
+import AddIntakeButton from './AddIntakeButton';
+import SubtypeSelector from './SubtypeSelector';
 
 const UNIT_CONFIG = {
   mg: { min: 0, max: 100, step: 1, default: 0, label: 'мг' },
@@ -23,10 +14,10 @@ const UNIT_CONFIG = {
 };
 
 const SUBTYPE_OPTIONS = [
-  { value: 'IV', label: 'IV', icon: GiWaterDrop, color: '#3b82f6' }, // Blue
-  { value: 'IM', label: 'IM', icon: FaSyringe, color: '#a855f7' },   // Purple
-  { value: 'PO', label: 'PO', icon: FaPills, color: '#f59e0b' },     // Amber/Orange
-  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop, color: '#22c55e' } // Green
+  { value: 'IV', label: 'IV', icon: GiWaterDrop },
+  { value: 'IM', label: 'IM', icon: FaSyringe },
+  { value: 'PO', label: 'PO', icon: FaPills },
+  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop }
 ];
 
 const getDefaultSubtype = (title) => {
@@ -56,8 +47,18 @@ const MedTrackerCard = ({
     ? ` ${selectedTime.toLocaleDateString('uk-UA')}`
     : '';
 
-  const activeSubtypeConfig = SUBTYPE_OPTIONS.find(o => o.value === subtype);
-  const activeColor = activeSubtypeConfig ? activeSubtypeConfig.color : (title === 'AH' ? '#22c55e' : '#3b82f6');
+  const activeColor =
+    subtype === 'IV'
+      ? 'var(--subtype-iv)'
+      : subtype === 'IM'
+        ? 'var(--subtype-im)'
+        : subtype === 'PO'
+          ? 'var(--subtype-po)'
+          : subtype === 'IV+PO'
+            ? 'var(--subtype-ivpo)'
+            : title === 'AH'
+              ? 'var(--accent-ah)'
+              : 'var(--accent-ei)';
 
   const handleUnitChange = (newUnit) => {
     setUnit(newUnit);
@@ -135,40 +136,7 @@ const MedTrackerCard = ({
         </div>
 
         {/* Subtypes row */}
-        <div className="mt-5 flex justify-between">
-          {SUBTYPE_OPTIONS.map((option) => {
-            const isActive = subtype === option.value;
-            const Icon = option.icon;
-            const glow = `0 0 18px ${hexToRgba(option.color, 0.35)}`;
-            const chipBg = `linear-gradient(135deg, ${hexToRgba(option.color, 0.22)}, ${hexToRgba(option.color, 0.08)})`;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setSubtype(option.value)}
-                className="flex flex-col items-center gap-1 transition-opacity"
-                style={{ opacity: isActive ? 1 : 0.45 }}
-              >
-                <div
-                  className="w-12 h-12 rounded-xl border flex items-center justify-center"
-                  style={
-                    isActive
-                      ? { borderColor: option.color, background: chipBg, boxShadow: glow, color: option.color }
-                      : { borderColor: 'rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.65)' }
-                  }
-                >
-                  <span className="flex items-center gap-0.5">
-                    <Icon className="text-xl" />
-                    {option.value === 'IV+PO' && <FaPills className="text-[10px]" />}
-                  </span>
-                </div>
-                <span className="text-[10px] font-bold" style={{ color: isActive ? option.color : 'rgba(255,255,255,0.50)' }}>
-                  {option.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <SubtypeSelector value={subtype} onChange={setSubtype} options={SUBTYPE_OPTIONS} />
       </div>
 
       {/* Light body */}
@@ -232,7 +200,7 @@ const MedTrackerCard = ({
 
           <div
             className="px-4 py-2 rounded-xl"
-            style={{ background: hexToRgba(activeColor, 0.10) }}
+            style={{ background: `color-mix(in srgb, ${activeColor} 12%, transparent)` }}
           >
             <div className="flex items-center gap-2">
               <span className="text-3xl font-black" style={{ color: activeColor }}>
@@ -249,23 +217,7 @@ const MedTrackerCard = ({
         </div>
 
         {/* Add Button */}
-        <button
-          type="button"
-          onClick={handleAddIntake}
-          disabled={isAddDisabled}
-          className="w-full py-4 rounded-2xl font-black text-lg transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            background: 'var(--action-bg)',
-            color: 'var(--success-color)',
-            border: '1px solid var(--action-border)',
-            boxShadow: '0 18px 40px var(--shadow-color-strong), 0 0 18px var(--success-color)'
-          }}
-        >
-          <span className="inline-flex items-center justify-center gap-2">
-            <span className="text-2xl leading-none">+</span>
-            Додати
-          </span>
-        </button>
+        <AddIntakeButton onClick={handleAddIntake} disabled={isAddDisabled} />
       </div>
     </div>
   );

@@ -1,8 +1,14 @@
 {
   "name": "aurora",
   "isDark": true,
-  "backgroundGradient": ["#0B1020", "#1B2A41"],
-  "cardBackground": ["rgba(17, 24, 39, 0.95)", "rgba(17, 24, 39, 0.75)"],
+  "backgroundGradient": [
+    "#0B1020",
+    "#1B2A41"
+  ],
+  "cardBackground": [
+    "rgba(17, 24, 39, 0.95)",
+    "rgba(17, 24, 39, 0.75)"
+  ],
   "textPrimary": "#E3F2FD",
   "textSecondary": "#BBDEFB",
   "accentAH": "#7C4DFF",
@@ -10,7 +16,29 @@
   "border": "#334155",
   "timelineLine": "#1F2937",
   "markerColor": "#475569",
-  "timelineBackground": ["rgba(11, 16, 32, 0.55)", "rgba(11, 16, 32, 0.25)"],
-  "timelineSecondaryBackground": ["rgba(11, 16, 32, 0.7)", "rgba(11, 16, 32, 0.4)"],
-  "success": "#4CAF50"
+  "timelineBackground": [
+    "rgba(11, 16, 32, 0.55)",
+    "rgba(11, 16, 32, 0.25)"
+  ],
+  "timelineSecondaryBackground": [
+    "rgba(11, 16, 32, 0.7)",
+    "rgba(11, 16, 32, 0.4)"
+  ],
+  "success": "#4CAF50",
+  "subtypeColors": {
+    "iv": "#4FC3F7",
+    "im": "#BA68C8",
+    "po": "#FFB74D",
+    "ivpo": "#81C784"
+  },
+  "subtypePanel": {
+    "bg": "rgba(255, 255, 255, 0.06)",
+    "border": "rgba(255, 255, 255, 0.12)"
+  },
+  "addButton": {
+    "bg": "rgba(255, 255, 255, 0.92)",
+    "text": "rgba(2, 6, 23, 0.92)",
+    "border": "rgba(255, 255, 255, 0.18)",
+    "glow": "#4CAF50"
+  }
 }

@@ -1,8 +1,14 @@
 {
   "name": "ocean",
   "isDark": false,
-  "backgroundGradient": ["#E1F5FE", "#B3E5FC"],
-  "cardBackground": ["rgba(255, 255, 255, 0.96)", "rgba(255, 255, 255, 0.85)"],
+  "backgroundGradient": [
+    "#E1F5FE",
+    "#B3E5FC"
+  ],
+  "cardBackground": [
+    "rgba(255, 255, 255, 0.96)",
+    "rgba(255, 255, 255, 0.85)"
+  ],
   "textPrimary": "#01579B",
   "textSecondary": "#0277BD",
   "accentAH": "#0288D1",
@@ -10,7 +16,29 @@
   "border": "#81D4FA",
   "timelineLine": "#E0E0E0",
   "markerColor": "#90A4AE",
-  "timelineBackground": ["rgba(225, 245, 254, 0.85)", "rgba(225, 245, 254, 0.55)"],
-  "timelineSecondaryBackground": ["rgba(179, 229, 252, 0.95)", "rgba(179, 229, 252, 0.7)"],
-  "success": "#039BE5"
+  "timelineBackground": [
+    "rgba(225, 245, 254, 0.85)",
+    "rgba(225, 245, 254, 0.55)"
+  ],
+  "timelineSecondaryBackground": [
+    "rgba(179, 229, 252, 0.95)",
+    "rgba(179, 229, 252, 0.7)"
+  ],
+  "success": "#039BE5",
+  "subtypeColors": {
+    "iv": "#0288D1",
+    "im": "#7C3AED",
+    "po": "#F59E0B",
+    "ivpo": "#22C55E"
+  },
+  "subtypePanel": {
+    "bg": "rgba(2, 6, 23, 0.22)",
+    "border": "rgba(255, 255, 255, 0.14)"
+  },
+  "addButton": {
+    "bg": "rgba(2, 6, 23, 0.86)",
+    "text": "#E1F5FE",
+    "border": "rgba(255, 255, 255, 0.18)",
+    "glow": "#039BE5"
+  }
 }

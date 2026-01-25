@@ -1,8 +1,14 @@
 {
   "name": "mist",
   "isDark": false,
-  "backgroundGradient": ["#F5F7FA", "#E0E7FF"],
-  "cardBackground": ["rgba(255, 255, 255, 0.96)", "rgba(245, 248, 255, 0.86)"],
+  "backgroundGradient": [
+    "#F5F7FA",
+    "#E0E7FF"
+  ],
+  "cardBackground": [
+    "rgba(255, 255, 255, 0.96)",
+    "rgba(245, 248, 255, 0.86)"
+  ],
   "textPrimary": "#1E3A8A",
   "textSecondary": "#3B82F6",
   "accentAH": "#6366F1",
@@ -10,7 +16,29 @@
   "border": "#C7D2FE",
   "timelineLine": "#A5B4FC",
   "markerColor": "#94A3B8",
-  "timelineBackground": ["rgba(224, 231, 255, 0.82)", "rgba(224, 231, 255, 0.55)"],
-  "timelineSecondaryBackground": ["rgba(214, 220, 255, 0.94)", "rgba(214, 220, 255, 0.7)"],
-  "success": "#22C55E"
+  "timelineBackground": [
+    "rgba(224, 231, 255, 0.82)",
+    "rgba(224, 231, 255, 0.55)"
+  ],
+  "timelineSecondaryBackground": [
+    "rgba(214, 220, 255, 0.94)",
+    "rgba(214, 220, 255, 0.7)"
+  ],
+  "success": "#22C55E",
+  "subtypeColors": {
+    "iv": "#3b82f6",
+    "im": "#a855f7",
+    "po": "#f59e0b",
+    "ivpo": "#22c55e"
+  },
+  "subtypePanel": {
+    "bg": "rgba(2, 6, 23, 0.22)",
+    "border": "rgba(255, 255, 255, 0.14)"
+  },
+  "addButton": {
+    "bg": "rgba(2, 6, 23, 0.86)",
+    "text": "#22C55E",
+    "border": "rgba(255, 255, 255, 0.18)",
+    "glow": "#22C55E"
+  }
 }
