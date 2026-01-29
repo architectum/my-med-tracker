@@ -1,0 +1,16 @@
+{
+    "name": "gundam wing",
+    "isDark": false,
+    "backgroundGradient": ["#F0F0F0", "#E0E0E0"],
+    "cardBackground": ["rgba(255, 255, 255, 0.96)", "rgba(255, 255, 255, 0.85)"],
+    "textPrimary": "#1A1A1B",
+    "textSecondary": "#4A4A4F",
+    "accentAH": "#0D47A1",
+    "accentEI": "#E53935",
+    "border": "#D1D1D6",
+    "timelineLine": "#C7C7CC",
+    "markerColor": "#0D47A1",
+    "timelineBackground": ["rgba(240, 240, 240, 0.85)", "rgba(240, 240, 240, 0.55)"],
+    "timelineSecondaryBackground": ["rgba(224, 224, 224, 0.95)", "rgba(224, 224, 224, 0.7)"],
+    "success": "#2E7D32"
+  }
