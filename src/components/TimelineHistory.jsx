@@ -9,7 +9,8 @@ const SUBTYPE_BADGES = {
   IV: { label: 'IV', icon: GiWaterDrop, color: 'var(--subtype-iv)' },
   IM: { label: 'IM', icon: FaSyringe, color: 'var(--subtype-im)' },
   PO: { label: 'PO', icon: FaPills, color: 'var(--subtype-po)' },
-  'IV+PO': { label: 'IV+PO', icon: GiWaterDrop, color: 'var(--subtype-ivpo)' }
+  'IV+PO': { label: 'IV+PO', icon: GiWaterDrop, color: 'var(--subtype-ivpo)' },
+  'VTRK': { label: 'VTRK', icon: GiWaterDrop, color: 'var(--subtype-vtrk)' }
 };
 
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
@@ -420,7 +421,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                             style={{ backgroundColor: subtypeBadge.color, color: 'white' }}
                           >
                             {SubtypeIcon && <SubtypeIcon className="text-[10px]" />}
-                            {subtypeBadge.label === 'IV+PO' && <FaPills className="text-[9px]" />}
+                            {(subtypeBadge.label === 'IV+PO' || subtypeBadge.label === 'VTRK') && <FaPills className="text-[9px]" />}
                             {subtypeBadge.label}
                           </span>
                         )}

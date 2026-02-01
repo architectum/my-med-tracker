@@ -29,7 +29,8 @@
     "iv": "#0288D1",
     "im": "#7C3AED",
     "po": "#F59E0B",
-    "ivpo": "#22C55E"
+    "ivpo": "#22C55E",
+    "vtrk": "#EF5350"
   },
   "subtypePanel": {
     "bg": "rgba(2, 6, 23, 0.22)",

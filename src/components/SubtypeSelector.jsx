@@ -33,7 +33,7 @@ const getComputedCssColor = (cssVar) => {
 const SubtypeSelector = ({ value, onChange, options }) => {
   return (
     <div
-      className="mt-5 flex justify-between rounded-2xl px-2 py-2"
+      className="mt-3 flex justify-center items-center gap-3 rounded-xl px-3 py-2"
       style={{
         background: 'var(--subtype-panel-bg)',
         border: '1px solid var(--subtype-panel-border)'
@@ -46,10 +46,10 @@ const SubtypeSelector = ({ value, onChange, options }) => {
         const cssColor = SUBTYPE_CSS_COLOR[option.value] || 'var(--text-secondary)';
         // Try to read actual hex from the var so we can keep the existing glow/gradient look.
         const computedHex = getComputedCssColor(cssColor);
-        const glow = computedHex ? `0 0 18px ${hexToRgba(computedHex, 0.35)}` : 'none';
+        const glow = computedHex ? `0 0 12px ${hexToRgba(computedHex, 0.35)}` : 'none';
         const chipBg = computedHex
           ? `linear-gradient(135deg, ${hexToRgba(computedHex, 0.22)}, ${hexToRgba(computedHex, 0.08)})`
-          : 'rgba(255,255,255,0.04)';
+          : 'var(--surface)';
 
         return (
           <button
@@ -60,25 +60,25 @@ const SubtypeSelector = ({ value, onChange, options }) => {
             style={{ opacity: isActive ? 1 : 0.45 }}
           >
             <div
-              className="w-12 h-12 rounded-xl border flex items-center justify-center"
+              className="w-9 h-9 rounded-lg border flex items-center justify-center"
               style={
                 isActive
                   ? { borderColor: cssColor, background: chipBg, boxShadow: glow, color: cssColor }
                   : {
-                      borderColor: 'rgba(255,255,255,0.12)',
-                      background: 'rgba(255,255,255,0.04)',
-                      color: 'rgba(255,255,255,0.65)'
+                      borderColor: 'var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text-secondary)'
                     }
               }
             >
               <span className="flex items-center gap-0.5">
-                <Icon className="text-xl" />
-                {option.value === 'IV+PO' && <FaPills className="text-[10px]" />}
+                <Icon className="text-base" />
+                {option.value === 'IV+PO' && <FaPills className="text-[8px]" />}
               </span>
             </div>
             <span
-              className="text-[10px] font-bold"
-              style={{ color: isActive ? cssColor : 'rgba(255,255,255,0.50)' }}
+              className="text-[9px] font-bold"
+              style={{ color: isActive ? cssColor : 'var(--text-secondary)' }}
             >
               {option.label}
             </span>

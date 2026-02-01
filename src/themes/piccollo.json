@@ -12,5 +12,22 @@
   "markerColor": "#7B1FA2",
   "timelineBackground": ["rgba(245, 255, 245, 0.85)", "rgba(245, 255, 245, 0.55)"],
   "timelineSecondaryBackground": ["rgba(232, 245, 233, 0.95)", "rgba(232, 245, 233, 0.7)"],
-  "success": "#43A047"
+  "success": "#43A047",
+  "subtypeColors": {
+    "iv": "#3b82f6",
+    "im": "#a855f7",
+    "po": "#f59e0b",
+    "ivpo": "#22c55e",
+    "vtrk": "#EF5350"
+  },
+  "subtypePanel": {
+    "bg": "rgba(2, 6, 23, 0.22)",
+    "border": "rgba(255, 255, 255, 0.14)"
+  },
+  "addButton": {
+    "bg": "rgba(2, 6, 23, 0.86)",
+    "text": "#43A047",
+    "border": "rgba(255, 255, 255, 0.18)",
+    "glow": "#43A047"
+  }
 }

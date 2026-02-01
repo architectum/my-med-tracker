@@ -17,7 +17,8 @@ const SUBTYPE_OPTIONS = [
   { value: 'IV', label: 'IV', icon: GiWaterDrop },
   { value: 'IM', label: 'IM', icon: FaSyringe },
   { value: 'PO', label: 'PO', icon: FaPills },
-  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop }
+  { value: 'IV+PO', label: 'IV+PO', icon: GiWaterDrop },
+  { value: 'VTRK', label: 'VTRK', icon: GiWaterDrop }
 ];
 
 const getDefaultSubtype = (title) => {
@@ -55,7 +56,9 @@ const MedTrackerCard = ({
         : subtype === 'PO'
           ? 'var(--subtype-po)'
           : subtype === 'IV+PO'
-            ? 'var(--subtype-ivpo)'
+            ? 'var(--subtype-po)'
+            : subtype === 'VTRK'
+            ? 'var(--subtype-vtrk)'
             : title === 'AH'
               ? 'var(--accent-ah)'
               : 'var(--accent-ei)';
@@ -94,27 +97,39 @@ const MedTrackerCard = ({
 
   return (
     <div className="flex-1 rounded-[2rem] overflow-hidden border border-[var(--border)] shadow-soft-strong">
-      {/* Dark header like in screen.png */}
+      {/* Card header - styled like Add button for theme adaptability */}
       <div
-        className="p-4 pb-10"
-        style={{ background: 'var(--header-overlay)' }}
+        className="p-3 pb-8"
+        style={{
+          background: 'var(--add-btn-bg)',
+          borderBottom: '1px solid var(--add-btn-border)'
+        }}
       >
         <div className="flex items-center justify-between">
           <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center text-[var(--action-bg)] font-extrabold text-lg"
+            className="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-base"
             style={{
               background: 'var(--success-color)',
-              boxShadow: '0 0 18px var(--success-color)'
+              color: 'var(--add-btn-bg)',
+              boxShadow: '0 0 14px var(--success-color)'
             }}
           >
             {title}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-white/60">MG/ML</span>
+            <span
+              className="text-[10px] font-bold"
+              style={{ color: 'var(--add-btn-text)', opacity: 0.6 }}
+            >
+              MG/ML
+            </span>
             <div
               className="flex items-center rounded-full p-1 border"
-              style={{ background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)' }}
+              style={{
+                background: 'var(--surface)',
+                borderColor: 'var(--add-btn-border)'
+              }}
             >
               {['mg', 'ml'].map((u) => (
                 <button
@@ -124,8 +139,11 @@ const MedTrackerCard = ({
                   className="px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wide transition"
                   style={
                     unit === u
-                      ? { background: 'rgba(255,255,255,0.14)', color: 'white' }
-                      : { color: 'rgba(255,255,255,0.70)' }
+                      ? {
+                          background: 'var(--success-color)',
+                          color: 'var(--add-btn-bg)'
+                        }
+                      : { color: 'var(--add-btn-text)', opacity: 0.7 }
                   }
                 >
                   {u.toUpperCase()}
@@ -149,8 +167,12 @@ const MedTrackerCard = ({
           <button
             type="button"
             onClick={() => adjustDosage(-1)}
-            className="w-12 h-12 rounded-2xl text-xl font-black flex items-center justify-center active:scale-95 transition"
-            style={{ background: 'var(--surface)', color: 'var(--text-primary)', boxShadow: '0 10px 18px var(--shadow-color)' }}
+            className="w-10 h-10 rounded-xl text-lg font-black flex items-center justify-center active:scale-95 transition"
+            style={{
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              boxShadow: '0 10px 24px var(--shadow-color)'
+            }}
             aria-label="Decrease dosage"
           >
             −
@@ -166,8 +188,12 @@ const MedTrackerCard = ({
           <button
             type="button"
             onClick={() => adjustDosage(1)}
-            className="w-12 h-12 rounded-2xl text-xl font-black flex items-center justify-center active:scale-95 transition"
-            style={{ background: 'var(--surface)', color: 'var(--text-primary)', boxShadow: '0 10px 18px var(--shadow-color)' }}
+            className="w-10 h-10 rounded-xl text-lg font-black flex items-center justify-center active:scale-95 transition"
+            style={{
+              background: 'var(--surface)',
+              color: 'var(--text-primary)',
+              boxShadow: '0 10px 24px var(--shadow-color)'
+            }}
             aria-label="Increase dosage"
           >
             +
