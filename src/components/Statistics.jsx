@@ -112,10 +112,23 @@ export default function Statistics({ onBack }) {
     const patientTotals = { AH: 0, EI: 0 };
     const patientMgTotals = { AH: 0, EI: 0 };
     filteredIntakes.forEach(intake => {
-      const patientId = intake.patientId || 'AH';
+      const patientId = intake.patientId || '';
       const dosage = intake.dosage || 0;
-      const unit = intake.unit || 'mg';
-      const mgAmount = convertToMg(dosage, unit);
+      const unit = intake.unit || '';
+      if(!patientId || !dosage || !unit) {
+        return;
+      }
+      let mgAmount = 0;
+      if(unit==='mg'){
+        mgAmount = dosage;
+      } else {
+        if(unit === 'ml') {
+          mgAmount = convertToMg(dosage, unit)
+        } else {
+          console.warn(`${patientId} intake with dosage: "${dosage}" and unit: "${unit}" is not converted! skipped!`)
+          return;
+        } 
+      }
       patientTotals[patientId] = (patientTotals[patientId] || 0) + 1;
       patientMgTotals[patientId] = (patientMgTotals[patientId] || 0) + mgAmount;
     });
