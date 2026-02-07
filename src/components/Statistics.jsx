@@ -170,7 +170,7 @@ export default function Statistics({ onBack }) {
       const totalHours = daysToShow * 24;
       
       for (let i = 0; i < totalHours; i += intervalHours) {
-        const hourDate = new Date(today);
+        const hourDate = new Date(startDate);
         hourDate.setHours(i, 0, 0, 0);
         const hourStr = hourDate.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
         hourlyStats[hourStr] = {
@@ -185,8 +185,9 @@ export default function Statistics({ onBack }) {
 
       filteredIntakes.forEach(intake => {
         const intakeDate = new Date(intake.timestamp);
-        const hoursSinceMidnight = (intakeDate - today) / (1000 * 60 * 60);
-        const intervalIndex = Math.floor(hoursSinceMidnight / intervalHours);
+        // Calculate hours from start of date range, not from today
+        const hoursSinceRangeStart = (intakeDate - startDate) / (1000 * 60 * 60);
+        const intervalIndex = Math.floor(hoursSinceRangeStart / intervalHours);
         const intervalKeys = Object.keys(hourlyStats).sort((a, b) => {
           return new Date('1970-01-01 ' + a) - new Date('1970-01-01 ' + b);
         });
