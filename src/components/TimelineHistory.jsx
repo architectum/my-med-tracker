@@ -671,8 +671,8 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                         onSelectIntake(isSelected ? null : intake);
                       }}
                       className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
-                        // EI on left of left line, AH on right of right line
-                        isAH ? 'left-1/2 pl-5' : 'right-1/2 pr-5 justify-end'
+                        // AH on left of left line, EI on right of right line
+                        isAH ? 'left-1/2 pr-5 justify-end' : 'right-1/2 pl-5'
                       } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
                       style={{ 
                         top: `${top}px`, 
@@ -683,9 +683,9 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       {/* Connector dot with glow - positioned on the outer side */}
                       <div
                         className={`absolute w-2.5 h-2.5 rounded-full border-2 z-10 ${
-                          // EI dots on left line (right side of left line)
-                          // AH dots on right line (left side of right line)
-                          isAH ? '-left-1.5' : '-right-1.5'
+                          // AH dots on left line (left side of left line)
+                          // EI dots on right line (right side of right line)
+                          isAH ? '-right-1.5' : '-left-1.5'
                         }`}
                         style={{
                           background: `color-mix(in srgb, ${subtype || mainAccent} 85%, white)`,
