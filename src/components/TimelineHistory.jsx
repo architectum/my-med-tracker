@@ -695,16 +695,16 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       />
                       {/* Colored Frame/Border for Subtype */}
                       {subtype && (
-                        <div
-                          className="absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300"
-                          style={{
-                            border: '2px solid',
-                            borderColor: subtypeColor,
-                            boxShadow: isSelected ? subtypeGlow : 'none',
-                            opacity: 0.6,
-                            margin: '-2px'
-                          }}
-                        />
+                        // <div
+                        //   className="absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300"
+                        //   style={{
+                        //     border: '2px solid',
+                        //     borderColor: subtypeColor,
+                        //     boxShadow: isSelected ? subtypeGlow : 'none',
+                        //     opacity: 0.6,
+                        //     margin: '-2px'
+                        //   }}
+                        // />
                       )}
                       
                       <div
