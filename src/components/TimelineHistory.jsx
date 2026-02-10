@@ -12,11 +12,11 @@ const SUBTYPE_COLORS = {
 };
 
 const SUBTYPE_GLOWS = {
-  IV: '0 0 20px var(--subtype-iv), 0 0 40px var(--subtype-iv)',
-  IM: '0 0 20px var(--subtype-im), 0 0 40px var(--subtype-im)',
-  PO: '0 0 20px var(--subtype-po), 0 0 40px var(--subtype-po)',
-  'IV+PO': '0 0 20px var(--subtype-ivpo), 0 0 40px var(--subtype-ivpo)',
-  'VTRK': '0 0 20px var(--subtype-vtrk), 0 0 40px var(--subtype-vtrk)'
+  IV: '0 0 20px var(--glow-light), 0 0 40px var(--glow-light)',
+  IM: '0 0 20px var(--glow-light), 0 0 40px var(--glow-light)',
+  PO: '0 0 20px var(--glow-light), 0 0 40px var(--glow-light)',
+  'IV+PO': '0 0 20px var(--glow-light), 0 0 40px var(--glow-light)',
+  'VTRK': '0 0 20px var(--glow-light), 0 0 40px var(--glow-light)'
 };
 
 const SUBTYPE_BORDER_COLORS = {
@@ -587,7 +587,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                     style={{ 
                       background: 'var(--accent-ei)', 
                       opacity: 0.35,
-                      boxShadow: '0 0 15px var(--accent-ei)'
+                      boxShadow: '0 0 15px var(--glow-light)'
                     }} 
                   />
                   <div

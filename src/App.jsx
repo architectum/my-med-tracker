@@ -22,7 +22,7 @@ export default function App() {
   const [selectedIntakeId, setSelectedIntakeId] = useState(null);
   const [activeIntake, setActiveIntake] = useState(null);
   const [activeTimeSelection, setActiveTimeSelection] = useState(null);
-  const [selectedTimeMap, setSelectedTimeMap] = useState({});
+  const [selectedTimeMap, setSelectedlineTimeMap] = useState({});
   const [mobileCardIndex, setMobileCardIndex] = useState(0);
   const [showStatistics, setShowStatistics] = useState(false);
   const touchStartX = React.useRef(null);
