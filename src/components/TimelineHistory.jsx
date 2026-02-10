@@ -11,17 +11,51 @@ const SUBTYPE_COLORS = {
   'VTRK': 'var(--subtype-vtrk)'
 };
 
+const SUBTYPE_GLOWS = {
+  IV: '0 0 20px var(--subtype-iv), 0 0 40px var(--subtype-iv)',
+  IM: '0 0 20px var(--subtype-im), 0 0 40px var(--subtype-im)',
+  PO: '0 0 20px var(--subtype-po), 0 0 40px var(--subtype-po)',
+  'IV+PO': '0 0 20px var(--subtype-ivpo), 0 0 40px var(--subtype-ivpo)',
+  'VTRK': '0 0 20px var(--subtype-vtrk), 0 0 40px var(--subtype-vtrk)'
+};
+
+const SUBTYPE_BORDER_COLORS = {
+  IV: 'var(--subtype-iv)',
+  IM: 'var(--subtype-im)',
+  PO: 'var(--subtype-po)',
+  'IV+PO': 'var(--subtype-ivpo)',
+  'VTRK': 'var(--subtype-vtrk)'
+};
+
+const ZOOM_LEVELS = [
+  { value: 0.5, label: '0.5x' },
+  { value: 0.75, label: '0.75x' },
+  { value: 1, label: '1x' },
+  { value: 1.25, label: '1.25x' },
+  { value: 1.5, label: '1.5x' },
+  { value: 2, label: '2x' },
+  { value: 2.5, label: '2.5x' },
+  { value: 3, label: '3x' },
+  { value: 4, label: '4x' },
+  { value: 5, label: '5x' }
+];
+
+// Base height for 24 hours in pixels (1 minute = 1 pixel at 1x zoom)
+const BASE_DAY_HEIGHT_PX = 1440;
+
 const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingTime, onTimeSelected }) => {
   const [intakes, setIntakes] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedLine, setSelectedLine] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
   const isPointerDown = useRef(false);
   const scrollRef = useRef(null);
   const dayRefs = useRef([]);
 
-  // Fixed mapping: the visible timeline window represents exactly 24 hours.
-  // The parent container defines the viewport height; we just match it.
-  const DAY_VIEWPORT_HEIGHT_PX = 600;
+  // Calculate day height based on zoom
+  const DAY_VIEWPORT_HEIGHT_PX = useMemo(() => {
+    return BASE_DAY_HEIGHT_PX * zoomLevel;
+  }, [zoomLevel]);
 
   useEffect(() => {
     const q = query(collection(db, 'intakes'), orderBy('timestamp', 'desc'));
@@ -93,17 +127,22 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     updateCurrentDayHeading();
   }, [updateCurrentDayHeading, sortedDays]);
 
+  // Convert time to pixel position (1440px = 24 hours at 1x zoom, scaled by zoomLevel)
   const getTimeTop = (date) => {
     const mins = date.getHours() * 60 + date.getMinutes();
-    return ((1440 - mins) / 1440) * 100;
+    // Invert: 00:00 should be at bottom, 23:59 at top
+    // Scale by zoomLevel so records stay at correct positions
+    return (BASE_DAY_HEIGHT_PX - mins) * zoomLevel;
   };
 
-  const getTopFromMins = (mins) => ((1440 - mins) / 1440) * 100;
+  const getTopFromMins = (mins) => (BASE_DAY_HEIGHT_PX - mins) * zoomLevel;
 
   const getMinutesFromPointer = (rect, clientY) => {
     const relative = Math.min(Math.max(clientY - rect.top, 0), rect.height);
-    const ratio = 1 - relative / rect.height;
-    return Math.round(ratio * 1440);
+    // Invert: top of container = 23:59, bottom = 00:00
+    // Scale back by zoomLevel to get actual minutes
+    const mins = BASE_DAY_HEIGHT_PX - (relative / zoomLevel);
+    return Math.round(mins);
   };
 
   const formatDurationHM = (minutesTotal) => {
@@ -119,13 +158,12 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
       const dayIdx = dayIndexByStartMs.get(dayStart);
       if (dayIdx === undefined) return null;
       const mins = dateObj.getHours() * 60 + dateObj.getMinutes();
-      const topPercent = getTopFromMins(mins);
-      return dayIdx * DAY_VIEWPORT_HEIGHT_PX + (topPercent / 100) * DAY_VIEWPORT_HEIGHT_PX;
+      // Position within day - scale by zoomLevel
+      const dayPosition = (BASE_DAY_HEIGHT_PX - mins) * zoomLevel;
+      return dayIdx * (BASE_DAY_HEIGHT_PX * zoomLevel) + dayPosition;
     },
-    [DAY_VIEWPORT_HEIGHT_PX]
+    [zoomLevel]
   );
-
-  // NOTE: per-patient last-past intake is handled inside the absolute gap label renderer.
 
   const getDayFromPointer = (clientY) => {
     if (!dayRefs.current.length) return null;
@@ -178,278 +216,447 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
     };
   }, []);
 
+  const zoomIn = () => {
+    const currentIndex = ZOOM_LEVELS.findIndex(z => z.value === zoomLevel);
+    if (currentIndex < ZOOM_LEVELS.length - 1) {
+      setZoomLevel(ZOOM_LEVELS[currentIndex + 1].value);
+    }
+  };
+
+  const zoomOut = () => {
+    const currentIndex = ZOOM_LEVELS.findIndex(z => z.value === zoomLevel);
+    if (currentIndex > 0) {
+      setZoomLevel(ZOOM_LEVELS[currentIndex - 1].value);
+    }
+  };
+
   return (
-    <div
-      ref={scrollRef}
-      className="flex-grow overflow-y-auto custom-scrollbar px-5 pb-20"
-      onClick={() => onSelectIntake(null)}
-      onScroll={updateCurrentDayHeading}
-      onPointerMove={handlePointerMove}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-    >
-      <div className="relative">
-        {/* Gaps: time passed between adjacent intakes across the whole timeline (AH left, EI right) */}
-        <div className="absolute inset-0 pointer-events-none z-0">
-          {(() => {
-            const dayIndexByStartMs = new Map(sortedDays.map((d, idx) => [d.date.getTime(), idx]));
+    <div className="flex flex-col h-full">
+      {/* Zoom Controls */}
+      <div className="flex items-center justify-center gap-2 py-2 px-4 bg-surface-1/80 backdrop-blur-sm border-b border-surface-2/50">
+        <button
+          onClick={zoomOut}
+          disabled={zoomLevel <= 0.5}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 disabled:opacity-30 enabled:hover:bg-surface-2/50"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          −
+        </button>
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-secondary)' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+          </svg>
+          <select
+            value={zoomLevel}
+            onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-2/50 border border-surface-3/50 outline-none cursor-pointer transition-all duration-200 hover:border-surface-3"
+            style={{ color: 'var(--text-primary)', minWidth: '70px' }}
+          >
+            {ZOOM_LEVELS.map((level) => (
+              <option key={level.value} value={level.value}>
+                {level.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={zoomIn}
+          disabled={zoomLevel >= 5}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 disabled:opacity-30 enabled:hover:bg-surface-2/50"
+          style={{ color: 'var(--text-primary)' }}
+        >
+          +
+        </button>
+        <span className="text-xs font-medium ml-2" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+          {Math.round(zoomLevel * 100)}%
+        </span>
+      </div>
 
-            const buildPatientItems = (patientId) =>
-              intakes
-                .filter((i) => i.patientId === patientId)
-                .filter((i) => i.timestamp instanceof Date)
-                .slice()
-                .sort((a, b) => b.timestamp - a.timestamp);
+      <div
+        ref={scrollRef}
+        className="flex-grow overflow-y-auto custom-scrollbar px-5 pb-20"
+        onClick={() => onSelectIntake(null)}
+        onScroll={updateCurrentDayHeading}
+        onPointerMove={handlePointerMove}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+      >
+        <div className="relative">
+          {/* Gaps: time passed between adjacent intakes across the whole timeline (AH left, EI right) */}
+          <div className="absolute inset-0 pointer-events-none z-0">
+            {(() => {
+              const dayIndexByStartMs = new Map(sortedDays.map((d, idx) => [d.date.getTime(), idx]));
 
-            const commonStyle = {
-              color: 'var(--text-secondary)',
-              opacity: 0.18,
-              fontSize: '32px',
-              fontWeight: 800,
-              letterSpacing: '0.02em',
-              textShadow: '0 1px 0 rgba(0,0,0,0.08)'
-            };
+              const buildPatientItems = (patientId) =>
+                intakes
+                  .filter((i) => i.patientId === patientId)
+                  .filter((i) => i.timestamp instanceof Date)
+                  .slice()
+                  .sort((a, b) => b.timestamp - a.timestamp);
 
-            const buildGapLabels = (patientId) => {
-              const items = buildPatientItems(patientId);
-              const labels = [];
+              const commonStyle = {
+                color: 'var(--text-secondary)',
+                opacity: 0.18,
+                fontSize: '32px',
+                fontWeight: 800,
+                letterSpacing: '0.02em',
+                textShadow: '0 1px 0 rgba(0,0,0,0.08)'
+              };
 
-              // Between each two intakes (even across different days)
-              for (let idx = 0; idx < items.length - 1; idx += 1) {
-                const a = items[idx];
-                const b = items[idx + 1];
-                const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, a.timestamp);
-                const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, b.timestamp);
-                if (y1 == null || y2 == null) continue;
-                const minutesPassed = Math.abs((a.timestamp - b.timestamp) / 60000);
-                if (minutesPassed < 1) continue;
-                labels.push({
-                  id: `${a.id}__${b.id}`,
-                  y: (y1 + y2) / 2,
-                  label: formatDurationHM(minutesPassed)
-                });
-              }
+              const buildGapLabels = (patientId) => {
+                const items = buildPatientItems(patientId);
+                const labels = [];
 
-              // Between last past intake and now
-              const lastPast = items.find((i) => i.timestamp.getTime() <= currentTime.getTime());
-              if (lastPast) {
-                const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, currentTime);
-                const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, lastPast.timestamp);
-                if (y1 != null && y2 != null) {
-                  const minutesPassed = Math.abs((currentTime - lastPast.timestamp) / 60000);
-                  if (minutesPassed >= 1) {
-                    labels.push({
-                      id: `${lastPast.id}__now`,
-                      y: (y1 + y2) / 2,
-                      label: formatDurationHM(minutesPassed)
-                    });
+                // Between each two intakes (even across different days)
+                for (let idx = 0; idx < items.length - 1; idx += 1) {
+                  const a = items[idx];
+                  const b = items[idx + 1];
+                  const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, a.timestamp);
+                  const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, b.timestamp);
+                  if (y1 == null || y2 == null) continue;
+                  const minutesPassed = Math.abs((a.timestamp - b.timestamp) / 60000);
+                  if (minutesPassed < 1) continue;
+                  labels.push({
+                    id: `${a.id}__${b.id}`,
+                    y: (y1 + y2) / 2,
+                    label: formatDurationHM(minutesPassed)
+                  });
+                }
+
+                // Between last past intake and now
+                const lastPast = items.find((i) => i.timestamp.getTime() <= currentTime.getTime());
+                if (lastPast) {
+                  const y1 = getAbsoluteYWithinTimeline(dayIndexByStartMs, currentTime);
+                  const y2 = getAbsoluteYWithinTimeline(dayIndexByStartMs, lastPast.timestamp);
+                  if (y1 != null && y2 != null) {
+                    const minutesPassed = Math.abs((currentTime - lastPast.timestamp) / 60000);
+                    if (minutesPassed >= 1) {
+                      labels.push({
+                        id: `${lastPast.id}__now`,
+                        y: (y1 + y2) / 2,
+                        label: formatDurationHM(minutesPassed)
+                      });
+                    }
                   }
                 }
-              }
 
-              return labels;
-            };
+                return labels;
+              };
 
-            const ahLabels = buildGapLabels('AH');
-            const eiLabels = buildGapLabels('EI');
+              const ahLabels = buildGapLabels('AH');
+              const eiLabels = buildGapLabels('EI');
 
-            return (
-              <>
-                {ahLabels.map((g) => (
-                  <div
-                    key={`ah-gap-${g.id}`}
-                    className="absolute left-1/2 whitespace-nowrap"
-                    style={{
-                      top: `${g.y}px`,
-                      transform: 'translate(-100%, -50%) translateX(-12px)',
-                      ...commonStyle
-                    }}
-                  >
-                    {g.label}
-                  </div>
-                ))}
-
-                {eiLabels.map((g) => (
-                  <div
-                    key={`ei-gap-${g.id}`}
-                    className="absolute left-1/2 whitespace-nowrap"
-                    style={{
-                      top: `${g.y}px`,
-                      transform: 'translate(0, -50%) translateX(12px)',
-                      ...commonStyle
-                    }}
-                  >
-                    {g.label}
-                  </div>
-                ))}
-              </>
-            );
-          })()}
-        </div>
-
-        {sortedDays.map((day, index) => (
-          <div
-            key={day.date.getTime()}
-            ref={(el) => {
-              dayRefs.current[index] = { current: el };
-            }}
-            className="relative"
-            style={{
-              height: `${DAY_VIEWPORT_HEIGHT_PX}px`,
-              background: 'transparent'
-            }}
-          >
-            {/* Markers */}
-            <div className="absolute inset-0 pointer-events-none z-0">
-              {/* Center reference ticks */}
-              {[...Array(24)].map((_, hour) => {
-                const mins = hour * 60;
-                const top = ((1440 - mins) / 1440) * 100;
-                const isLabel = mins % 180 === 0;
-                return (
-                  <div key={hour} className="absolute left-1/2 flex items-center" style={{ top: `${top}%` }}>
-                    <div className="h-px w-4" style={{ background: 'var(--marker-color)', opacity: 0.28 }} />
-                    {isLabel && (
-                      <span
-                        className="absolute -left-20 text-[10px] font-semibold"
-                        style={{ color: 'var(--marker-color)', opacity: 0.6 }}
-                      >
-                        {String(hour).padStart(2, '0')}:00
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Central Line */}
-            <div
-              className="absolute left-1/2 top-6 bottom-6 -translate-x-1/2 z-0"
-              style={{ width: '6px' }}
-            >
-              <div
-                className="absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full"
-                style={{ width: '4px', background: 'var(--timeline-line)', opacity: 0.35 }}
-              />
-            </div>
-
-            {/* Current Time Line */}
-            {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
-              <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${getTimeTop(currentTime)}%` }}>
-                <div className="w-full h-px" style={{ background: 'var(--accent-ah)', opacity: 0.18 }} />
-              </div>
-            )}
-
-            {/* Selected Time Line */}
-            {isSelectingTime &&
-              effectiveSelectedLine &&
-              effectiveSelectedLine.date.getTime() === day.date.getTime() && (
-              <div
-                className="absolute left-0 right-0 z-10 pointer-events-none"
-                style={{ top: `${getTopFromMins(effectiveSelectedLine.mins)}%` }}
-              >
-                <div className="w-full h-px" style={{ background: 'var(--accent-ei)', opacity: 0.35 }} />
-                <div
-                  className="absolute left-1/2 -translate-x-1/2 -top-4 px-4 py-1 rounded-full text-[10px] font-black"
-                  style={{
-                    color: 'var(--text-primary)',
-                    background: 'color-mix(in srgb, var(--success-color) 22%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--success-color) 55%, transparent)',
-                    boxShadow: '0 10px 24px var(--shadow-color)'
-                  }}
-                >
-                  {formatTime(new Date(day.date.getTime() + effectiveSelectedLine.mins * 60000))}
-                </div>
-              </div>
-            )}
-
-            {/* Intakes */}
-            <div className="absolute inset-0 z-20">
-              {day.intakes.map((intake) => {
-                const isAH = intake.patientId === 'AH';
-                const isSelected = selectedId === intake.id;
-                const top = getTimeTop(intake.timestamp);
-
-                // (Removed per lint): per-intake "since now" label is handled as large background gap labels.
-
-                const mainAccent = isAH ? 'var(--accent-ah)' : 'var(--accent-ei)';
-                const bubbleBg = isAH
-                  ? 'color-mix(in srgb, var(--accent-ah) 14%, transparent)'
-                  : 'color-mix(in srgb, var(--accent-ei) 14%, transparent)';
-
-                const subtypeBadge = intake.subtype ? SUBTYPE_BADGES[intake.subtype] : null;
-                const SubtypeIcon = subtypeBadge?.icon;
-
-                return (
-                  <div
-                    key={intake.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectIntake(isSelected ? null : intake);
-                    }}
-                    className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
-                      isAH ? 'right-1/2 pr-5 justify-end' : 'left-1/2 pl-5'
-                    } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
-                    style={{ top: `${top}%`, transform: 'translateY(-50%)', width: '46%' }}
-                  >
+              return (
+                <>
+                  {/* AH labels on left side (between lines or left of left line) */}
+                  {ahLabels.map((g) => (
                     <div
-                      className="px-3 py-2 rounded-2xl border"
+                      key={`ah-gap-${g.id}`}
+                      className="absolute whitespace-nowrap"
                       style={{
-                        background: bubbleBg,
-                        borderColor: 'rgba(255,255,255,0.55)',
-                        boxShadow: isSelected ? '0 18px 44px var(--shadow-color-strong)' : '0 10px 24px var(--shadow-color)',
-                        transform: isSelected ? 'scale(1.02)' : 'scale(1)',
-                        backdropFilter: 'blur(8px)'
+                        top: `${g.y}px`,
+                        transform: 'translateY(-50%)',
+                        left: 'calc(50% - 20px)',
+                        ...commonStyle
                       }}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>
-                          {intake.dosage}
-                        </span>
-                        <span className="text-[10px] font-black" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
-                          {intake.unit}
-                        </span>
-                        <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
-                          {formatTime(intake.timestamp)}
-                        </span>
-                        
-                        {subtypeBadge && (
+                      {g.label}
+                    </div>
+                  ))}
+
+                  {/* EI labels on right side (between lines or right of right line) */}
+                  {eiLabels.map((g) => (
+                    <div
+                      key={`ei-gap-${g.id}`}
+                      className="absolute whitespace-nowrap"
+                      style={{
+                        top: `${g.y}px`,
+                        transform: 'translateY(-50%)',
+                        left: 'calc(50% + 20px)',
+                        ...commonStyle
+                      }}
+                    >
+                      {g.label}
+                    </div>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+
+          {sortedDays.map((day, index) => (
+            <div
+              key={day.date.getTime()}
+              ref={(el) => {
+                dayRefs.current[index] = { current: el };
+              }}
+              className="relative"
+              style={{
+                height: `${DAY_VIEWPORT_HEIGHT_PX}px`,
+                background: 'transparent'
+              }}
+            >
+              {/* Markers - horizontal lines with tick marks on outer sides of parallel lines */}
+              <div className="absolute inset-0 pointer-events-none z-0">
+                {[...Array(24)].map((_, hour) => {
+                  const mins = hour * 60;
+                  const top = getTimeTop(new Date(day.date.getTime() + mins * 60000));
+                  const isLabel = mins % 180 === 0;
+                  const tickWidth = 4 * zoomLevel; // Scale tick width
+                  const tickOffset = 8; // Distance from parallel lines
+                  return (
+                    <div key={hour} className="absolute flex items-center" style={{ top: `${top}px`, transform: 'translateY(-50%)', left: '50%', width: '0', height: '0' }}>
+                      {/* Left tick (for left line) */}
+                      <div 
+                        className="h-px absolute"
+                        style={{ 
+                          background: 'var(--marker-color)', 
+                          opacity: 0.28,
+                          width: `${tickWidth}px`,
+                          right: `calc(50% + ${tickOffset}px)`
+                        }} 
+                      />
+                      {/* Right tick (for right line) */}
+                      <div 
+                        className="h-px absolute"
+                        style={{ 
+                          background: 'var(--marker-color)', 
+                          opacity: 0.28,
+                          width: `${tickWidth}px`,
+                          left: `calc(50% + ${tickOffset}px)`
+                        }} 
+                      />
+                      {isLabel && (
+                        <>
                           <span
-                            className="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black"
-                            style={{ backgroundColor: subtypeBadge.color, color: 'white' }}
+                            className="absolute text-[10px] font-semibold"
+                            style={{ 
+                              color: 'var(--marker-color)', 
+                              opacity: 0.6,
+                              right: `calc(50% + ${tickOffset + 20}px)`
+                            }}
                           >
-                            {SubtypeIcon && <SubtypeIcon className="text-[10px]" />}
-                            {(subtypeBadge.label === 'IV+PO' || subtypeBadge.label === 'VTRK') && <FaPills className="text-[9px]" />}
-                            {subtypeBadge.label}
+                            {String(hour).padStart(2, '0')}:00
                           </span>
-                        )}
+                          <span
+                            className="absolute text-[10px] font-semibold"
+                            style={{ 
+                              color: 'var(--marker-color)', 
+                              opacity: 0.6,
+                              left: `calc(50% + ${tickOffset + 20}px)`
+                            }}
+                          >
+                            {String(hour).padStart(2, '0')}:00
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Two Parallel Lines in Center */}
+              {/* Left Line */}
+              <div
+                className="absolute top-6 bottom-6 z-0"
+                style={{ 
+                  left: 'calc(50% - 8px)',
+                  width: '2px'
+                }}
+              >
+                <div
+                  className="absolute inset-y-0 rounded-full"
+                  style={{ 
+                    width: '2px', 
+                    background: 'var(--timeline-line)', 
+                    opacity: 0.4
+                  }}
+                />
+              </div>
+              {/* Right Line */}
+              <div
+                className="absolute top-6 bottom-6 z-0"
+                style={{ 
+                  left: 'calc(50% + 6px)',
+                  width: '2px'
+                }}
+              >
+                <div
+                  className="absolute inset-y-0 rounded-full"
+                  style={{ 
+                    width: '2px', 
+                    background: 'var(--timeline-line)', 
+                    opacity: 0.4
+                  }}
+                />
+              </div>
+
+              {/* Current Time Line */}
+              {getStartOfDay(currentTime).getTime() === day.date.getTime() && (
+                <div 
+                  className="absolute left-0 right-0 z-10 pointer-events-none" 
+                  style={{ top: `${getTimeTop(currentTime)}px`, transform: 'translateY(-50%)' }}
+                >
+                  <div 
+                    className="w-full h-px" 
+                    style={{ 
+                      background: 'var(--accent-ah)', 
+                      opacity: 0.18,
+                      boxShadow: '0 0 10px var(--accent-ah)'
+                    }} 
+                  />
+                </div>
+              )}
+
+              {/* Selected Time Line */}
+              {isSelectingTime &&
+                effectiveSelectedLine &&
+                effectiveSelectedLine.date.getTime() === day.date.getTime() && (
+                <div
+                  className="absolute left-0 right-0 z-10 pointer-events-none"
+                  style={{ top: `${getTopFromMins(effectiveSelectedLine.mins)}px`, transform: 'translateY(-50%)' }}
+                >
+                  <div 
+                    className="w-full h-px" 
+                    style={{ 
+                      background: 'var(--accent-ei)', 
+                      opacity: 0.35,
+                      boxShadow: '0 0 15px var(--accent-ei)'
+                    }} 
+                  />
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 -top-4 px-4 py-1 rounded-full text-[10px] font-black"
+                    style={{
+                      color: 'var(--text-primary)',
+                      background: 'color-mix(in srgb, var(--success-color) 22%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--success-color) 55%, transparent)',
+                      boxShadow: '0 10px 24px var(--shadow-color)'
+                    }}
+                  >
+                    {formatTime(new Date(day.date.getTime() + effectiveSelectedLine.mins * 60000))}
+                  </div>
+                </div>
+              )}
+
+              {/* Intakes */}
+              <div className="absolute inset-0 z-20">
+                {day.intakes.map((intake) => {
+                  const isAH = intake.patientId === 'AH';
+                  const isSelected = selectedId === intake.id;
+                  const top = getTimeTop(intake.timestamp);
+                  const subtype = intake.subtype;
+
+                  const mainAccent = isAH ? 'var(--accent-ah)' : 'var(--accent-ei)';
+                  const bubbleBg = isAH
+                    ? 'color-mix(in srgb, var(--accent-ah) 14%, transparent)'
+                    : 'color-mix(in srgb, var(--accent-ei) 14%, transparent)';
+
+                  // Get subtype-specific colors and effects
+                  const subtypeColor = SUBTYPE_COLORS[subtype] || 'var(--text-secondary)';
+                  const subtypeGlow = SUBTYPE_GLOWS[subtype] || 'none';
+                  const subtypeBorderColor = SUBTYPE_BORDER_COLORS[subtype] || 'rgba(255,255,255,0.55)';
+
+                  return (
+                    <div
+                      key={intake.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectIntake(isSelected ? null : intake);
+                      }}
+                      className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
+                        // EI on left of left line, AH on right of right line
+                        isAH ? 'left-1/2 pl-5' : 'right-1/2 pr-5 justify-end'
+                      } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
+                      style={{ 
+                        top: `${top}px`, 
+                        transform: 'translateY(-50%)', 
+                        width: '46%' 
+                      }}
+                    >
+                      {/* Connector dot with glow - positioned on the outer side */}
+                      <div
+                        className={`absolute w-2.5 h-2.5 rounded-full border-2 z-10 ${
+                          // EI dots on left line (right side of left line)
+                          // AH dots on right line (left side of right line)
+                          isAH ? '-left-1.5' : '-right-1.5'
+                        }`}
+                        style={{
+                          background: `color-mix(in srgb, ${subtype || mainAccent} 85%, white)`,
+                          borderColor: 'var(--surface-2)',
+                          boxShadow: `0 0 16px ${subtype || mainAccent}`
+                        }}
+                      />
+                      {/* Colored Frame/Border for Subtype */}
+                      {subtype && (
+                        <div
+                          className="absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300"
+                          style={{
+                            border: '2px solid',
+                            borderColor: subtypeColor,
+                            boxShadow: isSelected ? subtypeGlow : 'none',
+                            opacity: 0.6,
+                            margin: '-2px'
+                          }}
+                        />
+                      )}
+                      
+                      <div
+                        className="px-3 py-2 rounded-2xl border relative"
+                        style={{
+                          background: bubbleBg,
+                          borderColor: subtype ? subtypeBorderColor : 'rgba(255,255,255,0.55)',
+                          boxShadow: isSelected 
+                            ? `0 18px 44px var(--shadow-color-strong), ${subtypeGlow}`
+                            : '0 10px 24px var(--shadow-color)',
+                          transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                          backdropFilter: 'blur(8px)'
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black" style={{ color: 'var(--text-primary)' }}>
+                            {intake.dosage}
+                          </span>
+                          <span className="text-[10px] font-black" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+                            {intake.unit}
+                          </span>
+                          <span className="text-[10px] font-semibold" style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>
+                            {formatTime(intake.timestamp)}
+                          </span>
+                          
+                          {subtype && (
+                            <span
+                              className="ml-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black"
+                              style={{ 
+                                backgroundColor: subtypeColor, 
+                                color: 'white',
+                                boxShadow: subtypeGlow !== 'none' ? `0 0 10px ${subtypeColor}` : 'none'
+                              }}
+                            >
+                              {subtype}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div
-                      className={`absolute w-2.5 h-2.5 rounded-full border-2 z-10 ${
-                        isAH ? '-right-1.5' : '-left-1.5'
-                      }`}
-                      style={{
-                        background: `color-mix(in srgb, ${mainAccent} 85%, white)`,
-                        borderColor: 'var(--surface-2)',
-                        boxShadow: `0 0 16px ${mainAccent}`
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
 
-            <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-30">
-              <span
-                className="px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest"
-                style={{ background: 'transparent', color: 'var(--text-secondary)', opacity: 0.75 }}
-              >
-                {formatViewedDate(day.date)}
-              </span>
+              <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-30">
+                <span
+                  className="px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest"
+                  style={{ 
+                    background: 'transparent', 
+                    color: 'var(--text-secondary)', 
+                    opacity: 0.75
+                  }}
+                >
+                  {formatViewedDate(day.date)}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

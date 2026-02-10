@@ -14,10 +14,19 @@
   --timeline-line: #E0E0E0;
   --marker-color: #BDBDBD;
   --success-color: #81C784;
+  --accent-primary: #FF7043;
+
+  /* Subtype colors for colored frames and glow effects */
+  --subtype-iv: #E53935;
+  --subtype-im: #1E88E5;
+  --subtype-po: #43A047;
+  --subtype-ivpo: #8E24AA;
+  --subtype-vtrk: #FB8C00;
 
   /* Derived surfaces (set/overridden by theme in App.jsx) */
   --surface: rgba(255, 255, 255, 0.96);
   --surface-2: rgba(248, 250, 252, 0.98);
+  --surface-3: rgba(203, 213, 225, 0.5);
   --shadow-color: rgba(15, 23, 42, 0.18);
   --shadow-color-strong: rgba(15, 23, 42, 0.28);
   --header-overlay: rgba(0, 0, 0, 0.62);
