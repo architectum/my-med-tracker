@@ -655,8 +655,8 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
 
                   const mainAccent = isAH ? 'var(--accent-ah)' : 'var(--accent-ei)';
                   const bubbleBg = isAH
-                    ? 'color-mix(in srgb, var(--accent-ah) 14%, transparent)'
-                    : 'color-mix(in srgb, var(--accent-ei) 14%, transparent)';
+                    ? 'color-mix(in srgb, var(--accent-ah) 24%, transparent)'
+                    : 'color-mix(in srgb, var(--accent-ei) 24%, transparent)';
 
                   // Get subtype-specific colors and effects
                   const subtypeColor = SUBTYPE_COLORS[subtype] || 'var(--text-secondary)';
@@ -672,7 +672,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       }}
                       className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
                         // AH on left of left line, EI on right of right line
-                        isAH ? 'left-1/2 pr-5 justify-end' : 'right-1/2 pl-5'
+                        !isAH ? 'left-1/2 pr-5 justify-end' : 'right-1/2 pl-5 justify-start'
                       } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
                       style={{ 
                         top: `${top}px`, 
@@ -683,9 +683,9 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       {/* Connector dot with glow - positioned on the line */}
                       <div
                         className={`absolute w-3 h-3 rounded-full border-2 z-10 ${
-                          // AH dots on left line, EI dots on right line
-                          // Position relative to the card container which is positioned from center
-                          isAH ? '-right-[18px]' : '-left-[18px]'
+                          // AH dots on left line (right side of AH card, touching left vertical line)
+                          // EI dots on right line (left side of EI card, touching right vertical line)
+                          !isAH ? '-left-[-16px]' : '-right-[-11px]'
                         }`}
                         style={{
                           background: subtype ? subtypeColor : 'var(--text-secondary)',
