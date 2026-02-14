@@ -196,6 +196,19 @@ export default function App() {
                 <div
                   className="flex transition-transform duration-300 ease-out"
                   style={{ transform: `translateX(-${mobileCardIndex * 100}%)` }}
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0];
+                    e.currentTarget.dataset.touchStartX = touch.clientX;
+                  }}
+                  onTouchEnd={(e) => {
+                    const touch = e.changedTouches[0];
+                    const startX = parseFloat(e.currentTarget.dataset.touchStartX);
+                    const diff = startX - touch.clientX;
+                    if (Math.abs(diff) > 50) {
+                      if (diff > 0 && mobileCardIndex < 1) setMobileCardIndex(1);
+                      if (diff < 0 && mobileCardIndex > 0) setMobileCardIndex(0);
+                    }
+                  }}
                 >
                   <div className="min-w-full">
                     <MedTrackerCard
@@ -227,11 +240,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMobileCardIndex(0)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-                    mobileCardIndex === 0
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${mobileCardIndex === 0
                       ? 'bg-[var(--accent-ah)] text-white'
                       : 'bg-transparent border border-[var(--border)] text-[var(--text-secondary)]'
-                  }`}
+                    }`}
                   style={{
                     background: mobileCardIndex === 0 ? 'var(--accent-ah)' : 'transparent',
                     color: mobileCardIndex === 0 ? '#FFFFFF' : 'var(--text-secondary)',
@@ -245,11 +257,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMobileCardIndex(1)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
-                    mobileCardIndex === 1
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${mobileCardIndex === 1
                       ? 'bg-[var(--accent-ei)] text-white'
                       : 'bg-transparent border border-[var(--border)] text-[var(--text-secondary)]'
-                  }`}
+                    }`}
                   style={{
                     background: mobileCardIndex === 1 ? 'var(--accent-ei)' : 'transparent',
                     color: mobileCardIndex === 1 ? '#FFFFFF' : 'var(--text-secondary)',
