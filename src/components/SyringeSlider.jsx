@@ -1,22 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-
-/** Resolve CSS var like "var(--x)" to computed hex */
-const resolveCssColor = (colorStr) => {
-  if (!colorStr) return '#22c55e';
-  if (!colorStr.startsWith('var(')) return colorStr;
-  try {
-    const prop = colorStr.replace('var(', '').replace(')', '').trim();
-    const val = getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
-    return val || '#22c55e';
-  } catch {
-    return '#22c55e';
-  }
-};
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c55e', side = 'right' }) => {
   const containerRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
-  const resolvedColor = useMemo(() => resolveCssColor(color), [color]);
 
   const percentage = Math.min(Math.max(((value - min) / (max - min)) * 100, 0), 100);
 
@@ -85,7 +71,7 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
     >
       <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
         <defs>
-          {/* Glass barrel — semi-transparent white with cylindrical gradient */}
+          {/* Glass barrel gradient */}
           <linearGradient id={`${id}-glass`} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="#d4d4d8" stopOpacity="0.6" />
             <stop offset="12%" stopColor="#fafafa" stopOpacity="0.85" />
@@ -95,20 +81,21 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
             <stop offset="100%" stopColor="#71717a" stopOpacity="0.55" />
           </linearGradient>
 
+          {/* Cylindrical shading overlay for liquid (left-to-right opacity variation) */}
+          <linearGradient id={`${id}-liq-cyl`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#000000" stopOpacity="0.25" />
+            <stop offset="20%" stopColor="#ffffff" stopOpacity="0.1" />
+            <stop offset="50%" stopColor="#ffffff" stopOpacity="0.0" />
+            <stop offset="80%" stopColor="#000000" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
+          </linearGradient>
+
           {/* Shine stripe */}
           <linearGradient id={`${id}-shine`} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor="rgba(255,255,255,0)" />
             <stop offset="8%" stopColor="rgba(255,255,255,0.7)" />
             <stop offset="16%" stopColor="rgba(255,255,255,0.2)" />
             <stop offset="40%" stopColor="rgba(255,255,255,0)" />
-          </linearGradient>
-
-          {/* Liquid */}
-          <linearGradient id={`${id}-liq`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor={resolvedColor} stopOpacity="0.55" />
-            <stop offset="25%" stopColor={resolvedColor} stopOpacity="0.85" />
-            <stop offset="75%" stopColor={resolvedColor} stopOpacity="0.75" />
-            <stop offset="100%" stopColor={resolvedColor} stopOpacity="0.4" />
           </linearGradient>
 
           {/* Needle */}
@@ -141,11 +128,6 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
           <clipPath id={`${id}-clip`}>
             <rect x={barrelLeft} y={barrelTop} width={barrelW} height={barrelH} rx="5" />
           </clipPath>
-
-          <filter id={`${id}-gl`}>
-            <feGaussianBlur stdDeviation="1.5" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
         </defs>
 
         {/* ── NEEDLE ── */}
@@ -157,22 +139,39 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
         <rect x={cx - 7} y="55" width="14" height="10" rx="3" fill="#a1a1aa" />
         <rect x={cx - 6} y="56" width="12" height="2" rx="1" fill="rgba(255,255,255,0.35)" />
 
-        {/* ── BARREL ── visible glass cylinder */}
+        {/* ── BARREL ── glass cylinder */}
         <rect x={barrelLeft} y={barrelTop} width={barrelW} height={barrelH} rx="5"
           fill={`url(#${id}-glass)`} stroke="rgba(161,161,170,0.5)" strokeWidth="0.6" />
 
         {/* Barrel contents (clipped) */}
         <g clipPath={`url(#${id}-clip)`}>
-          {/* Liquid between top and piston */}
+
+          {/* === LIQUID === */}
+          {/* Layer 1: Solid fill with subtype color via CSS style prop (reliable on all browsers) */}
           {liquidH > 0 && (
-            <rect x={barrelLeft} y={barrelTop} width={barrelW} height={liquidH}
-              fill={`url(#${id}-liq)`} filter={`url(#${id}-gl)`} className={trans} />
+            <rect
+              x={barrelLeft} y={barrelTop}
+              width={barrelW} height={liquidH}
+              style={{ fill: color, opacity: 0.75 }}
+              className={trans}
+            />
           )}
-          {/* Meniscus highlight */}
+          {/* Layer 2: Cylindrical shading overlay (uses static gradient, no CSS vars) */}
+          {liquidH > 0 && (
+            <rect
+              x={barrelLeft} y={barrelTop}
+              width={barrelW} height={liquidH}
+              fill={`url(#${id}-liq-cyl)`}
+              className={trans}
+            />
+          )}
+
+          {/* Meniscus highlight at bottom of liquid */}
           {liquidH > 3 && (
             <rect x={barrelLeft + 3} y={pistonY - 2} width={barrelW - 6} height="2"
               fill="rgba(255,255,255,0.35)" rx="1" className={trans} />
           )}
+
           {/* Bubbles */}
           {percentage > 10 && (
             <g className={trans}>
@@ -181,6 +180,7 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
               <circle cx={cx - 2} cy={barrelTop + liquidH * 0.12} r="0.6" fill="rgba(255,255,255,0.3)" className="syr-b3" />
             </g>
           )}
+
           {/* Piston rubber stopper */}
           <rect x={barrelLeft + 1} y={pistonY} width={barrelW - 2} height="7" rx="2"
             fill={`url(#${id}-rub)`} className={trans} />
@@ -196,7 +196,7 @@ const SyringeSlider = ({ value, max, min = 0, step = 1, onChange, color = '#22c5
         <rect x={cx - 0.4} y={pistonY + 7} width="0.8" height={svgH - pistonY}
           fill="rgba(255,255,255,0.4)" className={trans} />
 
-        {/* Graduation marks — on the right side of barrel */}
+        {/* Graduation marks */}
         {ticks.map(({ y, label, major }) => (
           <g key={y}>
             <line x1={barrelRight + 1} y1={y} x2={barrelRight + (major ? 8 : 4)} y2={y}
