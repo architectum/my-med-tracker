@@ -257,7 +257,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
             value={zoomLevel}
             onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
             className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-2/50 border border-surface-3/50 outline-none cursor-pointer transition-all duration-200 hover:border-surface-3"
-            style={{ color: 'var(--text-primary)', minWidth: '70px' }}
+            style={{ color: 'var(--add-btn-text)', background: var(--add-btn-bg), border-color: var(--add-btn-border),  minWidth: '70px' }}
           >
             {ZOOM_LEVELS.map((level) => (
               <option key={level.value} value={level.value}>
@@ -688,11 +688,12 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                           !isAH ? 'left-[13px]' : 'right-[11px]'
                         }`}
                         style={{
-                          background: isAH ? 'var(--accent-ah)' : 'var(--accent-ei)', //subtype ? subtypeColor : 'var(--text-secondary)',
+                          //background: isAH ? 'var(--accent-ah)' : 'var(--accent-ei)', 
+			  background: subtype ? subtypeColor : 'var(--text-secondary)',
                           borderColor: subtype ? subtypeColor : 'var(--text-secondary)',
-                          opacity: 0.6,
+                          opacity: 1,
                           // borderColor: 'var(--surface)',
-                          boxShadow: `0 0 1px var(--glow-light)`
+                          //boxShadow: `0 0 1px var(--glow-light)`
                         }}
                       />
                       {/* Colored Frame/Border for Subtype */}
