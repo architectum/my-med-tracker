@@ -672,7 +672,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       }}
                       className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
                         // AH on left of left line, EI on right of right line
-                        !isAH ? 'left-1/2 -ml-9 pr-5 justify-end' : 'right-1/2 -mr-9 pl-5 justify-start'
+                        !isAH ? 'left-1/2 -ml-[9px] pr-5 justify-end' : 'right-1/2 -mr-[9px] pl-5 justify-start'
                       } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
                       style={{ 
                         top: `${top}px`, 
