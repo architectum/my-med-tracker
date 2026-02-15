@@ -672,12 +672,12 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                       }}
                       className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
                         // AH on left of left line, EI on right of right line
-                        !isAH ? 'left-[50%] ml-[-7px] pr-5 justify-end' : 'right-[50%] mr-[-9px] pl-5 justify-start'
+                        !isAH ? 'left-1/2 -ml-9 pr-5 justify-end' : 'right-1/2 -mr-9 pl-5 justify-start'
                       } ${selectedId && !isSelected ? 'opacity-30' : 'opacity-100'}`}
                       style={{ 
                         top: `${top}px`, 
                         transform: 'translateY(-50%)', 
-                        width: '50%',
+                        width: '10em',
                       }}
                     >
                       {/* Connector dot with glow - positioned on the line */}
@@ -685,7 +685,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, isSelectingT
                         className={`absolute w-3 h-3 rounded-full border-2 z-10 ${
                           // AH dots on left line (right side of AH card, touching left vertical line)
                           // EI dots on right line (left side of EI card, touching right vertical line)
-                          !isAH ? '-left-[-13px]' : '-right-[-11px]'
+                          !isAH ? 'left-[13px]' : 'right-[11px]'
                         }`}
                         style={{
                           background: isAH ? 'var(--accent-ah)' : 'var(--accent-ei)', //subtype ? subtypeColor : 'var(--text-secondary)',
