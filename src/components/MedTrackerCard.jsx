@@ -1,12 +1,12 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { GiWaterDrop } from "react-icons/gi";
 import { FaSyringe, FaPills, FaRegClock, FaCalendarAlt } from "react-icons/fa";
 import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { db } from "../firebase";
-import { formatTime, getStartOfDay } from "../utils/time";
 import SyringeSlider from "./SyringeSlider";
 import AddIntakeButton from "./AddIntakeButton";
 import SubtypeSelector from "./SubtypeSelector";
+import AddTimeModal from "./AddTimeModal";
 
 const UNIT_CONFIG = {
   mg: { min: 0, max: 100, step: 1, default: 0, label: "мг" },
@@ -31,8 +31,8 @@ const MedTrackerCard = ({ title, onAddSuccess }) => {
   const [unit, setUnit] = useState("mg");
   const [currentDosage, setCurrentDosage] = useState(UNIT_CONFIG.mg.default);
   const [subtype, setSubtype] = useState(() => getDefaultSubtype(title));
-  const [customTime, setCustomTime] = useState(""); // ISO string from datetime-local input
-  const dateInputRef = useRef(null);
+  const [customTime, setCustomTime] = useState(null); // Date object or null
+  const [showTimeModal, setShowTimeModal] = useState(false);
 
   const activeColor =
     subtype === "IV"
@@ -63,7 +63,7 @@ const MedTrackerCard = ({ title, onAddSuccess }) => {
   };
 
   const handleAddIntake = async () => {
-    const intakeTimestamp = customTime ? new Date(customTime) : new Date();
+    const intakeTimestamp = customTime || new Date();
     try {
       await addDoc(collection(db, "intakes"), {
         patientId: title,
@@ -75,7 +75,7 @@ const MedTrackerCard = ({ title, onAddSuccess }) => {
       });
       onAddSuccess(`${title}: Додано ${currentDosage} ${unit}`);
       setCurrentDosage(0);
-      setCustomTime(""); // Reset time
+      setCustomTime(null); // Reset time
     } catch (e) {
       console.error(e);
     }
@@ -216,30 +216,24 @@ const MedTrackerCard = ({ title, onAddSuccess }) => {
             style={{ borderTop: "1px solid var(--border)" }}
           >
             <div className="relative mb-2">
-              <input
-                type="datetime-local"
-                ref={dateInputRef}
-                value={customTime}
-                onChange={(e) => setCustomTime(e.target.value)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
               <button
                 type="button"
+                onClick={() => setShowTimeModal(true)}
                 className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all"
                 style={{
                   background: customTime
-                    ? "var(--accent-primary)"
+                    ? activeColor
                     : "rgba(255,255,255,0.04)",
                   color: customTime ? "#fff" : "var(--text-secondary)",
                   border: customTime
-                    ? "1px solid var(--accent-primary)"
+                    ? `1px solid ${activeColor}`
                     : "1px solid var(--border)",
                 }}
               >
                 {customTime ? (
                   <>
                     <FaCalendarAlt className="text-[10px]" />
-                    {new Date(customTime).toLocaleString("uk-UA", {
+                    {customTime.toLocaleString("uk-UA", {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",
@@ -259,6 +253,15 @@ const MedTrackerCard = ({ title, onAddSuccess }) => {
           </div>
         </div>
       </div>
+
+      {showTimeModal && (
+        <AddTimeModal
+          initialDateTime={customTime || new Date()}
+          onSave={setCustomTime}
+          onClose={() => setShowTimeModal(false)}
+          accentColor={activeColor}
+        />
+      )}
     </div>
   );
 };
