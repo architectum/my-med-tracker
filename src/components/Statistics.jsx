@@ -19,10 +19,10 @@ import { db } from "../firebase";
 import {
   FaArrowLeft,
   FaSyringe,
-  FaPills,
   FaChartLine,
   FaClock,
   FaHourglassHalf,
+  FaDroplet,
 } from "react-icons/fa6";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
@@ -42,29 +42,52 @@ const convertToMg = (dosage, unit) => {
   return dosage;
 };
 
-const formatTime = (hour) => {
+const formatHour = (hour) => {
   return `${String(hour).padStart(2, "0")}:00`;
 };
 
+/**
+ * Calculate average interval between consecutive intakes for a single patient.
+ * Filters out gaps > 48h (missed days) to get realistic dosing intervals.
+ * Returns formatted string like "4.2" (hours) or null if not enough data.
+ */
 const calculateIntervals = (intakes) => {
-  // intakes should be sorted descending (newest first)
-  // We need ascending for easier interval calc
+  if (intakes.length < 2) return null;
+
+  // Sort ascending by timestamp
   const sorted = [...intakes].sort((a, b) => a.timestamp - b.timestamp);
   let totalDiff = 0;
   let count = 0;
 
   for (let i = 1; i < sorted.length; i++) {
-    const diff = sorted[i].timestamp - sorted[i - 1].timestamp;
-    // Filter out huge gaps (e.g. > 24 hours) which might be missed days, or keep them?
-    // Let's keep simpler logic first: all intervals.
-    totalDiff += diff;
-    count++;
+    const diffMs = sorted[i].timestamp - sorted[i - 1].timestamp;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    // Filter out unrealistically large gaps (> 48h) — those represent missed days
+    if (diffHours <= 48) {
+      totalDiff += diffMs;
+      count++;
+    }
   }
 
-  if (count === 0) return 0;
+  if (count === 0) return null;
   const avgMs = totalDiff / count;
   const avgHours = avgMs / (1000 * 60 * 60);
   return avgHours.toFixed(1);
+};
+
+/**
+ * Format a relative time string for "last dose" display.
+ */
+const formatLastDose = (date) => {
+  if (!date) return null;
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.round(diffMs / 60000);
+  if (diffMins < 60) return `${diffMins} хв тому`;
+  const diffHours = diffMs / (1000 * 60 * 60);
+  if (diffHours < 24) return `${diffHours.toFixed(1)} год тому`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} дн тому`;
 };
 
 const calculateStats = (intakes, daysToShow) => {
@@ -83,12 +106,14 @@ const calculateStats = (intakes, daysToShow) => {
   };
   last24hIntakes.forEach((i) => {
     const pid = i.patientId || "AH";
+    if (!last24hStats[pid]) return;
     const mg = convertToMg(parseFloat(i.dosage) || 0, i.unit || "mg");
     last24hStats[pid].count++;
     last24hStats[pid].mg += mg;
   });
 
   // -- MAIN RANGE STATS --
+  // Start of day N days ago (inclusive)
   const startDate = new Date(now);
   startDate.setDate(now.getDate() - daysToShow + 1);
   startDate.setHours(0, 0, 0, 0);
@@ -97,13 +122,29 @@ const calculateStats = (intakes, daysToShow) => {
     (intake) => intake.timestamp >= startDate,
   );
 
+  if (filteredIntakes.length === 0) {
+    return {
+      chartData: [],
+      hourlyData: Array(24)
+        .fill(0)
+        .map((_, i) => ({ hour: i, label: formatHour(i), AH: 0, EI: 0, AH_mg: 0, EI_mg: 0 })),
+      patientStats: {
+        AH: { count: 0, mg: 0, subtypes: {}, maxDailyMg: 0, lastDose: null, avgDailyMg: "0", avgDailyCount: "0.0", avgIntervalHours: null },
+        EI: { count: 0, mg: 0, subtypes: {}, maxDailyMg: 0, lastDose: null, avgDailyMg: "0", avgDailyCount: "0.0", avgIntervalHours: null },
+      },
+      last24hStats,
+      pieData: { AH: [], EI: [] },
+      totalIntakes: 0,
+    };
+  }
+
   // Initialize data structures
   const dailyData = {}; // Key: YYYY-MM-DD
   const hourlyData = Array(24)
     .fill(0)
     .map((_, i) => ({
       hour: i,
-      label: formatTime(i),
+      label: formatHour(i),
       AH: 0,
       EI: 0,
       AH_mg: 0,
@@ -129,12 +170,15 @@ const calculateStats = (intakes, daysToShow) => {
     },
   };
 
-  // Helper to init daily data
   const getDayKey = (date) => {
-    return date.toISOString().split("T")[0];
+    // Use local date parts to avoid UTC offset issues
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
-  // Fill dailyData with empty entries for the range
+  // Fill dailyData with empty entries for all days in range
   for (let i = 0; i < daysToShow; i++) {
     const d = new Date(startDate);
     d.setDate(d.getDate() + i);
@@ -149,7 +193,7 @@ const calculateStats = (intakes, daysToShow) => {
     };
   }
 
-  // Process main filtered intakes
+  // Process filtered intakes
   filteredIntakes.forEach((intake) => {
     const date = intake.timestamp;
     const key = getDayKey(date);
@@ -160,26 +204,28 @@ const calculateStats = (intakes, daysToShow) => {
     const mg = convertToMg(dosage, unit);
     const subtype = intake.subtype || "PO";
 
-    // Daily Stats
+    // Daily stats
     if (dailyData[key]) {
-      dailyData[key][patientId] += 1;
-      dailyData[key][`${patientId}_mg`] += mg;
+      dailyData[key][patientId] = (dailyData[key][patientId] || 0) + 1;
+      dailyData[key][`${patientId}_mg`] =
+        (dailyData[key][`${patientId}_mg`] || 0) + mg;
     }
 
-    // Hourly Stats (Aggregate)
-    hourlyData[hour][patientId] += 1;
-    hourlyData[hour][`${patientId}_mg`] += mg;
+    // Hourly stats
+    if (hourlyData[hour]) {
+      hourlyData[hour][patientId] += 1;
+      hourlyData[hour][`${patientId}_mg`] += mg;
+    }
 
-    // Patient Total Stats
+    // Patient stats
     if (patientStats[patientId]) {
       patientStats[patientId].count += 1;
       patientStats[patientId].mg += mg;
       patientStats[patientId].subtypes[subtype] =
         (patientStats[patientId].subtypes[subtype] || 0) + 1;
-
       patientStats[patientId].intervals.push(intake);
 
-      // Update last dose (global check from all filtered, but effectively latest is usually in range)
+      // Track most recent dose
       if (
         !patientStats[patientId].lastDose ||
         date > patientStats[patientId].lastDose
@@ -189,11 +235,12 @@ const calculateStats = (intakes, daysToShow) => {
     }
   });
 
-  // Calculate Max Daily Mg and finalize daily data array
+  // Build sorted chart array
   const chartData = Object.values(dailyData).sort((a, b) =>
     a.fullDate.localeCompare(b.fullDate),
   );
 
+  // Calculate max daily mg per patient
   chartData.forEach((day) => {
     ["AH", "EI"].forEach((pid) => {
       if (day[`${pid}_mg`] > patientStats[pid].maxDailyMg) {
@@ -202,21 +249,22 @@ const calculateStats = (intakes, daysToShow) => {
     });
   });
 
-  // Calculate Averages & Intervals
-  const daysCount = Math.max(1, daysToShow);
+  // Calculate averages:
+  // Use number of days that actually have intakes for a more meaningful average,
+  // but allow dividing by daysToShow for "overall period" average.
   ["AH", "EI"].forEach((pid) => {
-    patientStats[pid].avgDailyMg = (patientStats[pid].mg / daysCount).toFixed(
-      0,
-    );
-    patientStats[pid].avgDailyCount = (
-      patientStats[pid].count / daysCount
-    ).toFixed(1);
-    patientStats[pid].avgIntervalHours = calculateIntervals(
-      patientStats[pid].intervals,
-    );
+    const ps = patientStats[pid];
+
+    // Count days with at least 1 intake for this patient
+    const daysWithData = chartData.filter((d) => d[pid] > 0).length;
+    const effectiveDays = Math.max(1, daysWithData);
+
+    ps.avgDailyMg = (ps.mg / effectiveDays).toFixed(0);
+    ps.avgDailyCount = (ps.count / effectiveDays).toFixed(1);
+    ps.avgIntervalHours = calculateIntervals(ps.intervals);
   });
 
-  // Format Subtype Data for Pie Charts
+  // Format subtype data for pie charts
   const getPieData = (subtypes) => {
     return Object.entries(subtypes)
       .map(([name, value]) => ({ name, value }))
@@ -236,37 +284,29 @@ const calculateStats = (intakes, daysToShow) => {
   };
 };
 
-const StatCard = ({ title, value, subtext, icon: Icon, color, trend }) => (
+const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
   <div
-    className="rounded-2xl p-4 border border-[var(--border)] relative overflow-hidden group hover:scale-[1.02] transition-transform animate-in fade-in zoom-in duration-300"
+    className="rounded-2xl p-4 border border-[var(--border)] relative overflow-hidden hover:scale-[1.02] transition-transform animate-in fade-in zoom-in duration-300"
     style={{ background: "var(--surface)" }}
   >
-    <div className="flex justify-between items-start mb-2">
-      <div className="p-2 rounded-lg" style={{ background: `${color}20` }}>
-        <Icon className="w-5 h-5" style={{ color }} />
+    <div className="flex justify-between items-start mb-3">
+      <div className="p-2 rounded-xl" style={{ background: `${color}22` }}>
+        <Icon className="w-4 h-4" style={{ color }} />
       </div>
-      {trend && (
-        <span
-          className={`text-xs font-bold px-2 py-1 rounded-full ${trend > 0 ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}
-        >
-          {trend > 0 ? "+" : ""}
-          {trend}%
-        </span>
-      )}
     </div>
-    <div className="text-2xl font-black text-[var(--text-primary)] mb-1">
+    <div className="text-2xl font-black text-[var(--text-primary)] mb-1 tabular-nums">
       {value}
     </div>
-    <div className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+    <div className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
       {title}
     </div>
     {subtext && (
-      <div className="text-xs text-[var(--text-secondary)] mt-1 opacity-70">
+      <div className="text-[10px] text-[var(--text-secondary)] mt-1 opacity-60">
         {subtext}
       </div>
     )}
     <div
-      className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full opacity-5"
+      className="absolute -bottom-6 -right-6 w-20 h-20 rounded-full opacity-[0.06]"
       style={{ background: color }}
     />
   </div>
@@ -300,9 +340,9 @@ export default function Statistics({ onBack }) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="w-8 h-8 border-4 border-[var(--accent-primary)] border-t-transparent rounded-full animate-spin" />
-        <div className="text-[var(--text-secondary)] font-medium">
-          Завантаження статистики...
+        <div className="loading-spinner" />
+        <div className="text-[var(--text-secondary)] font-medium text-sm">
+          Завантаження...
         </div>
       </div>
     );
@@ -311,20 +351,12 @@ export default function Statistics({ onBack }) {
   if (!stats || stats.totalIntakes === 0) {
     return (
       <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          >
-            <FaArrowLeft /> Назад
-          </button>
-        </div>
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8 opacity-60">
-          <FaChartLine className="w-16 h-16 mb-4 text-[var(--text-secondary)]" />
+          <FaChartLine className="w-14 h-14 mb-4 text-[var(--text-secondary)]" />
           <h3 className="text-xl font-bold text-[var(--text-primary)]">
             Немає даних
           </h3>
-          <p className="text-[var(--text-secondary)]">
+          <p className="text-sm text-[var(--text-secondary)] mt-2">
             Додайте записи, щоб побачити статистику
           </p>
         </div>
@@ -332,125 +364,156 @@ export default function Statistics({ onBack }) {
     );
   }
 
+  const { patientStats, last24hStats, chartData, hourlyData, pieData } = stats;
+
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-      {/* Header */}
-      <div className="flex items-center justify-between sticky top-0 z-10 py-2 backdrop-blur-md bg-[var(--bg-gradient-start)]/80">
-        <button
-          onClick={onBack}
-          className="p-2 rounded-full hover:bg-[var(--surface)] text-[var(--text-primary)] transition-colors"
-        >
-          <FaArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">
-          Статистика
-        </h2>
-        <select
-          value={dateRange}
-          onChange={(e) => setDateRange(e.target.value)}
-          className="px-4 py-2 rounded-full border border-[var(--border)] text-[var(--text-primary)] text-sm font-bold bg-[var(--surface)] outline-none focus:ring-2 focus:ring-[var(--accent-primary)]"
-        >
-          <option value="3">3 дні</option>
-          <option value="7">7 днів</option>
-          <option value="14">14 днів</option>
-          <option value="30">30 днів</option>
-          <option value="90">90 днів</option>
-        </select>
+    <div className="flex flex-col gap-5 pb-10">
+      {/* Date Range Selector */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 p-1 rounded-2xl border border-[var(--border)]" style={{ background: "var(--surface)" }}>
+          {[
+            { v: "3", label: "3д" },
+            { v: "7", label: "7д" },
+            { v: "14", label: "14д" },
+            { v: "30", label: "30д" },
+            { v: "90", label: "90д" },
+          ].map(({ v, label }) => (
+            <button
+              key={v}
+              onClick={() => setDateRange(v)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200"
+              style={{
+                background:
+                  dateRange === v ? "var(--accent-primary)" : "transparent",
+                color:
+                  dateRange === v ? "#fff" : "var(--text-secondary)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-[var(--text-secondary)] font-semibold opacity-60">
+          {stats.totalIntakes} прийомів
+        </span>
       </div>
 
-      {/* Last 24 Hours Section */}
-      <div className="rounded-3xl p-5 border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] to-[var(--surface-2)] shadow-lg animate-in fade-in slide-in-from-bottom-8 duration-700">
-        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-wide mb-4 flex items-center gap-2">
-          <FaClock className="text-[var(--accent-primary)]" /> Останні 24 години
+      {/* Last 24 Hours */}
+      <div
+        className="rounded-3xl p-4 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-4 duration-500"
+        style={{ background: "var(--surface)" }}
+      >
+        <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-3 flex items-center gap-2">
+          <FaClock className="opacity-70" />
+          Останні 24 години
         </h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
-            <div className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 text-center">
-              AH
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl font-black text-[var(--accent-ah)]">
-                {stats.last24hStats.AH.mg.toFixed(0)}{" "}
-                <span className="text-xs font-medium text-[var(--text-secondary)]">
+        <div className="grid grid-cols-2 gap-3">
+          {["AH", "EI"].map((pid) => (
+            <div
+              key={pid}
+              className="p-3 rounded-2xl border border-[var(--border)] text-center"
+              style={{ background: "var(--surface-2)" }}
+            >
+              <div
+                className="text-[10px] font-black uppercase tracking-widest mb-2"
+                style={{ color: `var(--accent-${pid.toLowerCase()})` }}
+              >
+                {pid}
+              </div>
+              <div
+                className="text-3xl font-black tabular-nums"
+                style={{ color: `var(--accent-${pid.toLowerCase()})` }}
+              >
+                {last24hStats[pid].mg.toFixed(0)}
+                <span
+                  className="text-xs font-medium ml-1"
+                  style={{ color: "var(--text-secondary)" }}
+                >
                   мг
                 </span>
-              </span>
-              <span className="text-xs font-semibold text-[var(--text-secondary)] opacity-70">
-                {stats.last24hStats.AH.count} прийомів
-              </span>
+              </div>
+              <div className="text-xs font-semibold text-[var(--text-secondary)] opacity-60 mt-1">
+                {last24hStats[pid].count} прийомів
+              </div>
+              {patientStats[pid].lastDose && (
+                <div className="text-[10px] text-[var(--text-secondary)] opacity-50 mt-0.5">
+                  {formatLastDose(patientStats[pid].lastDose)}
+                </div>
+              )}
             </div>
-          </div>
-          <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
-            <div className="text-xs font-bold text-[var(--text-secondary)] uppercase mb-2 text-center">
-              EI
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl font-black text-[var(--accent-ei)]">
-                {stats.last24hStats.EI.mg.toFixed(0)}{" "}
-                <span className="text-xs font-medium text-[var(--text-secondary)]">
-                  мг
-                </span>
-              </span>
-              <span className="text-xs font-semibold text-[var(--text-secondary)] opacity-70">
-                {stats.last24hStats.EI.count} прийомів
-              </span>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* Summary Stats Grid */}
+      <div className="grid grid-cols-2 gap-3">
         <StatCard
           title="Середній інтервал AH"
-          value={`${stats.patientStats.AH.avgIntervalHours} год`}
-          subtext="Між прийомами"
+          value={
+            patientStats.AH.avgIntervalHours != null
+              ? `${patientStats.AH.avgIntervalHours} год`
+              : "—"
+          }
+          subtext={
+            patientStats.AH.avgIntervalHours == null
+              ? "Недостатньо даних"
+              : "Між прийомами"
+          }
           icon={FaHourglassHalf}
           color="var(--accent-ah)"
         />
         <StatCard
           title="Середній інтервал EI"
-          value={`${stats.patientStats.EI.avgIntervalHours} год`}
-          subtext="Між прийомами"
+          value={
+            patientStats.EI.avgIntervalHours != null
+              ? `${patientStats.EI.avgIntervalHours} год`
+              : "—"
+          }
+          subtext={
+            patientStats.EI.avgIntervalHours == null
+              ? "Недостатньо даних"
+              : "Між прийомами"
+          }
           icon={FaHourglassHalf}
           color="var(--accent-ei)"
         />
         <StatCard
           title="Загалом мг AH"
-          value={Math.round(stats.patientStats.AH.mg)}
-          subtext={`Середнє: ${stats.patientStats.AH.avgDailyMg} мг/день`}
+          value={Math.round(patientStats.AH.mg)}
+          subtext={`~${patientStats.AH.avgDailyMg} мг/день`}
           icon={FaSyringe}
           color="var(--accent-ah)"
         />
         <StatCard
           title="Загалом мг EI"
-          value={Math.round(stats.patientStats.EI.mg)}
-          subtext={`Середнє: ${stats.patientStats.EI.avgDailyMg} мг/день`}
-          icon={FaSyringe}
+          value={Math.round(patientStats.EI.mg)}
+          subtext={`~${patientStats.EI.avgDailyMg} мг/день`}
+          icon={FaDroplet}
           color="var(--accent-ei)"
         />
       </div>
 
-      {/* Main Chart: Daily Mg */}
+      {/* Daily Dosage Chart */}
       <div
         className="rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100"
         style={{ background: "var(--surface)" }}
       >
-        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-wide mb-6 flex items-center gap-2">
-          <FaChartLine /> Динаміка дозування (мг)
+        <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-5 flex items-center gap-2">
+          <FaChartLine className="opacity-70" />
+          Динаміка дозування (мг)
         </h3>
-        <div className="h-[250px] w-full">
+        <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={stats.chartData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              data={chartData}
+              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
             >
               <defs>
                 <linearGradient id="colorAH" x1="0" y1="0" x2="0" y2="1">
                   <stop
                     offset="5%"
                     stopColor="var(--accent-ah)"
-                    stopOpacity={0.3}
+                    stopOpacity={0.35}
                   />
                   <stop
                     offset="95%"
@@ -462,7 +525,7 @@ export default function Statistics({ onBack }) {
                   <stop
                     offset="5%"
                     stopColor="var(--accent-ei)"
-                    stopOpacity={0.3}
+                    stopOpacity={0.35}
                   />
                   <stop
                     offset="95%"
@@ -475,18 +538,20 @@ export default function Statistics({ onBack }) {
                 strokeDasharray="3 3"
                 stroke="var(--border)"
                 vertical={false}
+                opacity={0.5}
               />
               <XAxis
                 dataKey="date"
                 stroke="var(--text-secondary)"
-                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
-                dy={10}
+                dy={8}
+                interval={Math.max(0, Math.floor(chartData.length / 6))}
               />
               <YAxis
                 stroke="var(--text-secondary)"
-                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
               />
@@ -495,20 +560,29 @@ export default function Statistics({ onBack }) {
                   background: "var(--surface-2)",
                   border: "1px solid var(--border)",
                   borderRadius: "12px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                  fontSize: "12px",
                 }}
                 labelStyle={{
                   color: "var(--text-primary)",
                   fontWeight: "bold",
                   marginBottom: "4px",
                 }}
+                itemStyle={{ color: "var(--text-secondary)" }}
                 cursor={{
                   stroke: "var(--text-secondary)",
                   strokeWidth: 1,
                   strokeDasharray: "4 4",
+                  opacity: 0.5,
                 }}
               />
-              <Legend wrapperStyle={{ paddingTop: "20px" }} />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "16px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}
+              />
               <Area
                 type="monotone"
                 dataKey="AH_mg"
@@ -516,8 +590,10 @@ export default function Statistics({ onBack }) {
                 stroke="var(--accent-ah)"
                 fillOpacity={1}
                 fill="url(#colorAH)"
-                strokeWidth={3}
-                animationDuration={1500}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                animationDuration={1000}
               />
               <Area
                 type="monotone"
@@ -526,8 +602,10 @@ export default function Statistics({ onBack }) {
                 stroke="var(--accent-ei)"
                 fillOpacity={1}
                 fill="url(#colorEI)"
-                strokeWidth={3}
-                animationDuration={1500}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                animationDuration={1000}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -539,62 +617,75 @@ export default function Statistics({ onBack }) {
         className="rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200"
         style={{ background: "var(--surface)" }}
       >
-        <h3 className="text-sm font-black text-[var(--text-primary)] uppercase tracking-wide mb-6 flex items-center gap-2">
-          <FaClock /> Розподіл по годинах (сумарно)
+        <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-5 flex items-center gap-2">
+          <FaClock className="opacity-70" />
+          Розподіл по годинах
         </h3>
-        <div className="h-[200px] w-full">
+        <div className="h-[180px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={stats.hourlyData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              data={hourlyData}
+              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="var(--border)"
                 vertical={false}
+                opacity={0.5}
               />
               <XAxis
                 dataKey="hour"
                 stroke="var(--text-secondary)"
-                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                tickFormatter={(val) => (val % 4 === 0 ? formatTime(val) : "")}
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickFormatter={(val) => (val % 6 === 0 ? formatHour(val) : "")}
                 tickLine={false}
                 axisLine={false}
-                dy={10}
+                dy={8}
               />
               <YAxis
                 stroke="var(--text-secondary)"
-                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
                 tickLine={false}
                 axisLine={false}
+                allowDecimals={false}
               />
               <Tooltip
-                cursor={{ fill: "var(--border)", opacity: 0.2 }}
+                cursor={{ fill: "var(--border)", opacity: 0.15 }}
                 contentStyle={{
                   background: "var(--surface-2)",
                   border: "1px solid var(--border)",
                   borderRadius: "12px",
+                  fontSize: "12px",
                 }}
                 labelFormatter={(val) =>
-                  `${formatTime(val)} - ${formatTime(val + 1)}`
+                  `${formatHour(val)} – ${formatHour(val + 1)}`
                 }
+                itemStyle={{ color: "var(--text-secondary)" }}
               />
-              <Legend />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "12px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}
+              />
               <Bar
                 dataKey="AH"
-                name="AH (кількість)"
+                name="AH"
                 stackId="a"
                 fill="var(--accent-ah)"
-                radius={[0, 0, 4, 4]}
-                animationDuration={1500}
+                radius={[0, 0, 3, 3]}
+                animationDuration={1000}
+                fillOpacity={0.85}
               />
               <Bar
                 dataKey="EI"
-                name="EI (кількість)"
+                name="EI"
                 stackId="a"
                 fill="var(--accent-ei)"
-                radius={[4, 4, 0, 0]}
-                animationDuration={1500}
+                radius={[3, 3, 0, 0]}
+                animationDuration={1000}
+                fillOpacity={0.85}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -610,72 +701,85 @@ export default function Statistics({ onBack }) {
             style={{ background: "var(--surface)" }}
           >
             <h3
-              className="text-sm font-black uppercase tracking-wide mb-4 text-center"
+              className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-center"
               style={{ color: `var(--accent-${pid.toLowerCase()})` }}
             >
               Типи прийому {pid}
             </h3>
-            <div className="h-[160px] relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.pieData[pid]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={2}
-                    dataKey="value"
-                    stroke="none"
-                    animationDuration={1500}
-                  >
-                    {stats.pieData[pid].map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={
-                          SUBTYPE_COLORS[entry.name] ||
-                          COLORS[index % COLORS.length]
-                        }
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--surface-2)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "8px",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center Label */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <span
-                  className="text-lg font-black"
-                  style={{ color: `var(--accent-${pid.toLowerCase()})` }}
-                >
-                  {stats.patientStats[pid].count}
-                </span>
+            {pieData[pid].length === 0 ? (
+              <div className="h-[140px] flex items-center justify-center text-[var(--text-secondary)] text-xs opacity-50">
+                Немає даних
               </div>
-            </div>
-            <div className="flex flex-wrap justify-center gap-3 mt-4">
-              {stats.pieData[pid].map((entry, index) => (
-                <div key={index} className="flex items-center gap-1.5">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{
-                      backgroundColor:
-                        SUBTYPE_COLORS[entry.name] ||
-                        COLORS[index % COLORS.length],
-                    }}
-                  />
-                  <span className="text-xs font-medium text-[var(--text-secondary)]">
-                    {entry.name}{" "}
-                    <span className="opacity-50">({entry.value})</span>
-                  </span>
+            ) : (
+              <>
+                <div className="h-[140px] relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData[pid]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={38}
+                        outerRadius={62}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                        animationDuration={1000}
+                      >
+                        {pieData[pid].map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              SUBTYPE_COLORS[entry.name] ||
+                              COLORS[index % COLORS.length]
+                            }
+                            fillOpacity={0.9}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface-2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "10px",
+                          fontSize: "12px",
+                        }}
+                        itemStyle={{ color: "var(--text-secondary)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  {/* Center count */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                      <span
+                        className="text-2xl font-black tabular-nums"
+                        style={{ color: `var(--accent-${pid.toLowerCase()})` }}
+                      >
+                        {patientStats[pid].count}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
+                <div className="flex flex-wrap justify-center gap-2 mt-3">
+                  {pieData[pid].map((entry, index) => (
+                    <div key={index} className="flex items-center gap-1.5">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            SUBTYPE_COLORS[entry.name] ||
+                            COLORS[index % COLORS.length],
+                        }}
+                      />
+                      <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
+                        {entry.name}{" "}
+                        <span className="opacity-50">({entry.value})</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
