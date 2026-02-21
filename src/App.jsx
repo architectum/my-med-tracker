@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import Notification from "./components/Notification";
 import ThemeSelector from "./components/ThemeSelector";
 import IntakeDetailsModal from "./components/IntakeDetailsModal";
-import MedTrackerCard from "./components/MedTrackerCard";
+import IntakePanel from "./components/IntakePanel";
 import TimelineHistory from "./components/TimelineHistory";
 import Statistics from "./components/Statistics";
 import { TIMELINE_TITLE_DEFAULT } from "./utils/time";
@@ -192,7 +192,6 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [selectedIntakeId, setSelectedIntakeId] = useState(null);
   const [activeIntake, setActiveIntake] = useState(null);
-  const [mobileCardIndex, setMobileCardIndex] = useState(0);
 
   // Apply theme whenever it changes (also persists to localStorage)
   useEffect(() => {
@@ -426,85 +425,8 @@ export default function App() {
         {/* MAIN VIEW */}
         {activeView === VIEW.MAIN && (
           <div className="flex flex-col gap-4 flex-grow page-enter-left">
-            {/* Cards: desktop/tablet side-by-side */}
-            <div className="hidden sm:flex gap-3">
-              <MedTrackerCard title="AH" onAddSuccess={setNotification} />
-              <MedTrackerCard title="EI" onAddSuccess={setNotification} />
-            </div>
-
-            {/* Cards: mobile carousel */}
-            <div className="sm:hidden">
-              <div className="relative overflow-hidden">
-                <div
-                  className="flex transition-transform duration-300 ease-out"
-                  style={{
-                    transform: `translateX(-${mobileCardIndex * 100}%)`,
-                  }}
-                  onTouchStart={(e) => {
-                    const touch = e.touches[0];
-                    e.currentTarget.dataset.touchStartX = touch.clientX;
-                  }}
-                  onTouchEnd={(e) => {
-                    const touch = e.changedTouches[0];
-                    const startX = parseFloat(
-                      e.currentTarget.dataset.touchStartX,
-                    );
-                    const diff = startX - touch.clientX;
-                    if (Math.abs(diff) > 50) {
-                      if (diff > 0 && mobileCardIndex < 1)
-                        setMobileCardIndex(1);
-                      if (diff < 0 && mobileCardIndex > 0)
-                        setMobileCardIndex(0);
-                    }
-                  }}
-                >
-                  <div className="min-w-full">
-                    <MedTrackerCard title="AH" onAddSuccess={setNotification} />
-                  </div>
-                  <div className="min-w-full">
-                    <MedTrackerCard title="EI" onAddSuccess={setNotification} />
-                  </div>
-                </div>
-              </div>
-
-              {/* AH/EI Button Switcher */}
-              <div className="mt-2 flex justify-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setMobileCardIndex(0)}
-                  className="px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200"
-                  style={{
-                    background:
-                      mobileCardIndex === 0 ? "var(--accent-ah)" : "transparent",
-                    color:
-                      mobileCardIndex === 0 ? "#FFFFFF" : "var(--text-secondary)",
-                    border: "1px solid var(--border)",
-                    boxShadow:
-                      mobileCardIndex === 0 ? "0 0 8px var(--glow-light)" : "none",
-                  }}
-                  aria-label="Show AH card"
-                >
-                  AH
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileCardIndex(1)}
-                  className="px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200"
-                  style={{
-                    background:
-                      mobileCardIndex === 1 ? "var(--accent-ei)" : "transparent",
-                    color:
-                      mobileCardIndex === 1 ? "#FFFFFF" : "var(--text-secondary)",
-                    border: "1px solid var(--border)",
-                    boxShadow:
-                      mobileCardIndex === 1 ? "0 0 8px var(--glow-light)" : "none",
-                  }}
-                  aria-label="Show EI card"
-                >
-                  EI
-                </button>
-              </div>
-            </div>
+            {/* Unified intake panel — works on all screen sizes */}
+            <IntakePanel onAddSuccess={setNotification} />
 
             <div
               className="rounded-[2.5rem] pt-6 shadow-soft-strong border border-[var(--border)] flex flex-col overflow-hidden"
