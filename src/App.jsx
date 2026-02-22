@@ -127,6 +127,7 @@ function applyTheme(theme) {
   );
 
   const addButton = theme.addButton || {};
+  // addButton.bg can be a plain color or a CSS gradient string
   root.style.setProperty(
     "--add-btn-bg",
     addButton.bg || (isDark ? "#FFFFFF" : "var(--accent-primary)"),
@@ -144,6 +145,10 @@ function applyTheme(theme) {
     "--add-btn-glow",
     addButton.glow || (isDark ? "var(--accent-primary)" : "rgba(0,0,0,0.3)"),
   );
+
+  // Premium texture key (SVG pattern rendered in App)
+  root.style.setProperty("--premium-texture-key", theme.premiumTexture ? `"${theme.premiumTexture}"` : "none");
+  root.setAttribute("data-premium-texture", theme.premiumTexture || "");
 
   const gradientHeader = theme.gradientHeader || {};
   root.style.setProperty(
@@ -263,6 +268,10 @@ export default function App() {
           mixBlendMode: currentTheme?.isDark ? 'screen' : 'multiply'
         }}
       />
+      {/* Premium theme texture overlay */}
+      {currentTheme?.isPremium && currentTheme?.premiumTexture && (
+        <PremiumTextureOverlay textureKey={currentTheme.premiumTexture} isDark={currentTheme.isDark} />
+      )}
 
       {notification && (
         <Notification
@@ -476,6 +485,38 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+// ── Premium texture SVG overlay ──────────────────────────────────────────────
+const PREMIUM_TEXTURE_CSS = {
+  "crosshatch-gold":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cline x1='0' y1='0' x2='24' y2='24' stroke='rgba(212%2C165%2C32%2C0.1)' stroke-width='0.6'/%3E%3Cline x1='24' y1='0' x2='0' y2='24' stroke='rgba(212%2C165%2C32%2C0.1)' stroke-width='0.6'/%3E%3C/svg%3E")`,
+  "aurora-waves":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cpath d='M0 30 Q30 10 60 30 Q90 50 120 30' fill='none' stroke='rgba(0%2C229%2C255%2C0.08)' stroke-width='1.2'/%3E%3Cpath d='M0 45 Q30 25 60 45 Q90 65 120 45' fill='none' stroke='rgba(124%2C58%2C237%2C0.06)' stroke-width='1'/%3E%3Cpath d='M0 15 Q30 0 60 15 Q90 30 120 15' fill='none' stroke='rgba(0%2C229%2C255%2C0.05)' stroke-width='0.8'/%3E%3C/svg%3E")`,
+  "carbon-fiber":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Crect width='4' height='4' fill='rgba(255%2C45%2C85%2C0.07)'/%3E%3Crect x='4' y='4' width='4' height='4' fill='rgba(255%2C45%2C85%2C0.07)'/%3E%3Crect x='4' y='0' width='4' height='4' fill='rgba(255%2C255%2C255%2C0.018)'/%3E%3Crect x='0' y='4' width='4' height='4' fill='rgba(255%2C255%2C255%2C0.018)'/%3E%3C/svg%3E")`,
+  "petals":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='40' cy='40' r='18' fill='none' stroke='rgba(232%2C67%2C122%2C0.08)' stroke-width='0.8'/%3E%3Ccircle cx='40' cy='40' r='34' fill='none' stroke='rgba(192%2C38%2C160%2C0.05)' stroke-width='0.6'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(232%2C67%2C122%2C0.04)' transform='rotate(0 40 40)'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(192%2C38%2C160%2C0.03)' transform='rotate(60 40 40)'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(232%2C67%2C122%2C0.03)' transform='rotate(120 40 40)'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(192%2C38%2C160%2C0.04)' transform='rotate(180 40 40)'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(232%2C67%2C122%2C0.03)' transform='rotate(240 40 40)'/%3E%3Cellipse cx='40' cy='18' rx='7' ry='14' fill='rgba(192%2C38%2C160%2C0.03)' transform='rotate(300 40 40)'/%3E%3C/svg%3E")`,
+  "crystal-grid":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpolygon points='30%2C4 56%2C18 56%2C42 30%2C56 4%2C42 4%2C18' fill='none' stroke='rgba(0%2C102%2C255%2C0.08)' stroke-width='0.8'/%3E%3Cpolygon points='30%2C14 46%2C23 46%2C37 30%2C46 14%2C37 14%2C23' fill='none' stroke='rgba(0%2C170%2C255%2C0.05)' stroke-width='0.6'/%3E%3Cline x1='30' y1='4' x2='30' y2='56' stroke='rgba(0%2C102%2C255%2C0.04)' stroke-width='0.5'/%3E%3Cline x1='4' y1='30' x2='56' y2='30' stroke='rgba(0%2C102%2C255%2C0.04)' stroke-width='0.5'/%3E%3C/svg%3E")`,
+  "linen-weave":
+    `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cline x1='0' y1='0' x2='12' y2='0' stroke='rgba(200%2C134%2C10%2C0.12)' stroke-width='0.8'/%3E%3Cline x1='0' y1='4' x2='12' y2='4' stroke='rgba(200%2C134%2C10%2C0.07)' stroke-width='0.5'/%3E%3Cline x1='0' y1='8' x2='12' y2='8' stroke='rgba(200%2C134%2C10%2C0.09)' stroke-width='0.6'/%3E%3Cline x1='0' y1='0' x2='0' y2='12' stroke='rgba(200%2C134%2C10%2C0.1)' stroke-width='0.7'/%3E%3Cline x1='4' y1='0' x2='4' y2='12' stroke='rgba(200%2C134%2C10%2C0.05)' stroke-width='0.4'/%3E%3Cline x1='8' y1='0' x2='8' y2='12' stroke='rgba(200%2C134%2C10%2C0.07)' stroke-width='0.5'/%3E%3C/svg%3E")`,
+};
+
+function PremiumTextureOverlay({ textureKey, isDark }) {
+  const css = PREMIUM_TEXTURE_CSS[textureKey];
+  if (!css) return null;
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none"
+      style={{
+        backgroundImage: css,
+        backgroundRepeat: "repeat",
+        opacity: isDark ? 1 : 0.85,
+        zIndex: 0,
+      }}
+    />
   );
 }
 
