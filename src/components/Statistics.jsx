@@ -13,6 +13,11 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
+  ScatterChart,
+  Scatter,
+  ReferenceLine,
 } from "recharts";
 import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
@@ -23,6 +28,10 @@ import {
   FaClock,
   FaHourglassHalf,
   FaDroplet,
+  FaFire,
+  FaCalendarCheck,
+  FaBullseye,
+  FaArrowTrendUp,
 } from "react-icons/fa6";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
@@ -34,6 +43,8 @@ const SUBTYPE_COLORS = {
   "IV+PO": "var(--subtype-ivpo)",
   VTRK: "var(--subtype-vtrk)",
 };
+
+const DAY_NAMES = ["Нд", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 const convertToMg = (dosage, unit) => {
   if (unit === "ml") {
@@ -54,7 +65,6 @@ const formatHour = (hour) => {
 const calculateIntervals = (intakes) => {
   if (intakes.length < 2) return null;
 
-  // Sort ascending by timestamp
   const sorted = [...intakes].sort((a, b) => a.timestamp - b.timestamp);
   let totalDiff = 0;
   let count = 0;
@@ -62,7 +72,6 @@ const calculateIntervals = (intakes) => {
   for (let i = 1; i < sorted.length; i++) {
     const diffMs = sorted[i].timestamp - sorted[i - 1].timestamp;
     const diffHours = diffMs / (1000 * 60 * 60);
-    // Filter out unrealistically large gaps (> 48h) — those represent missed days
     if (diffHours <= 48) {
       totalDiff += diffMs;
       count++;
@@ -73,6 +82,32 @@ const calculateIntervals = (intakes) => {
   const avgMs = totalDiff / count;
   const avgHours = avgMs / (1000 * 60 * 60);
   return avgHours.toFixed(1);
+};
+
+/**
+ * Build array of {index, hours, date} for each consecutive interval
+ * between intakes of a single patient (gaps > 48h excluded).
+ */
+const buildIntervalHistory = (intakes) => {
+  if (intakes.length < 2) return [];
+  const sorted = [...intakes].sort((a, b) => a.timestamp - b.timestamp);
+  const result = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const diffMs = sorted[i].timestamp - sorted[i - 1].timestamp;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    if (diffHours <= 48) {
+      result.push({
+        index: result.length + 1,
+        hours: parseFloat(diffHours.toFixed(2)),
+        date: sorted[i].timestamp,
+        label: sorted[i].timestamp.toLocaleDateString("uk-UA", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+      });
+    }
+  }
+  return result;
 };
 
 /**
@@ -90,11 +125,44 @@ const formatLastDose = (date) => {
   return `${diffDays} дн тому`;
 };
 
+/**
+ * Calculate active day streak ending today.
+ */
+const calculateStreak = (chartData) => {
+  const sorted = [...chartData].sort((a, b) =>
+    b.fullDate.localeCompare(a.fullDate),
+  );
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < sorted.length; i++) {
+    const expected = new Date(today);
+    expected.setDate(today.getDate() - i);
+    const expectedKey = `${expected.getFullYear()}-${String(expected.getMonth() + 1).padStart(2, "0")}-${String(expected.getDate()).padStart(2, "0")}`;
+    const day = sorted.find((d) => d.fullDate === expectedKey);
+    if (day && (day.AH > 0 || day.EI > 0)) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+};
+
+/**
+ * Consistency score: % of days in range that had at least one intake (combined)
+ */
+const calculateConsistency = (chartData) => {
+  if (!chartData.length) return 0;
+  const activeDays = chartData.filter((d) => d.AH > 0 || d.EI > 0).length;
+  return Math.round((activeDays / chartData.length) * 100);
+};
+
 const calculateStats = (rawIntakes, daysToShow) => {
   if (!rawIntakes.length) return null;
 
-  // Filter out LOST records from all statistics
-  const intakes = rawIntakes.filter(i => i.patientId !== "NO" && i.subtype !== "LOST");
+  const intakes = rawIntakes.filter(
+    (i) => i.patientId !== "NO" && i.subtype !== "LOST",
+  );
   if (!intakes.length) return null;
 
   const now = new Date();
@@ -117,7 +185,6 @@ const calculateStats = (rawIntakes, daysToShow) => {
   });
 
   // -- MAIN RANGE STATS --
-  // Start of day N days ago (inclusive)
   const startDate = new Date(now);
   startDate.setDate(now.getDate() - daysToShow + 1);
   startDate.setHours(0, 0, 0, 0);
@@ -131,19 +198,56 @@ const calculateStats = (rawIntakes, daysToShow) => {
       chartData: [],
       hourlyData: Array(24)
         .fill(0)
-        .map((_, i) => ({ hour: i, label: formatHour(i), AH: 0, EI: 0, AH_mg: 0, EI_mg: 0 })),
+        .map((_, i) => ({
+          hour: i,
+          label: formatHour(i),
+          AH: 0,
+          EI: 0,
+          AH_mg: 0,
+          EI_mg: 0,
+        })),
       patientStats: {
-        AH: { count: 0, mg: 0, subtypes: {}, maxDailyMg: 0, lastDose: null, avgDailyMg: "0", avgDailyCount: "0.0", avgIntervalHours: null },
-        EI: { count: 0, mg: 0, subtypes: {}, maxDailyMg: 0, lastDose: null, avgDailyMg: "0", avgDailyCount: "0.0", avgIntervalHours: null },
+        AH: {
+          count: 0,
+          mg: 0,
+          subtypes: {},
+          maxDailyMg: 0,
+          lastDose: null,
+          avgDailyMg: "0",
+          avgDailyCount: "0.0",
+          avgIntervalHours: null,
+          maxSingleDoseMg: 0,
+          intervalHistory: [],
+          minIntervalHours: null,
+          maxIntervalHours: null,
+        },
+        EI: {
+          count: 0,
+          mg: 0,
+          subtypes: {},
+          maxDailyMg: 0,
+          lastDose: null,
+          avgDailyMg: "0",
+          avgDailyCount: "0.0",
+          avgIntervalHours: null,
+          maxSingleDoseMg: 0,
+          intervalHistory: [],
+          minIntervalHours: null,
+          maxIntervalHours: null,
+        },
       },
       last24hStats,
       pieData: { AH: [], EI: [] },
       totalIntakes: 0,
+      weeklyHeatmap: [],
+      cumulativeData: [],
+      streak: 0,
+      consistency: 0,
     };
   }
 
   // Initialize data structures
-  const dailyData = {}; // Key: YYYY-MM-DD
+  const dailyData = {};
   const hourlyData = Array(24)
     .fill(0)
     .map((_, i) => ({
@@ -155,6 +259,16 @@ const calculateStats = (rawIntakes, daysToShow) => {
       EI_mg: 0,
     }));
 
+  // Weekly heatmap: day-of-week (0-6) × patient count
+  const weeklyData = Array(7)
+    .fill(0)
+    .map((_, i) => ({
+      day: DAY_NAMES[i],
+      dayIndex: i,
+      AH: 0,
+      EI: 0,
+    }));
+
   const patientStats = {
     AH: {
       count: 0,
@@ -163,6 +277,7 @@ const calculateStats = (rawIntakes, daysToShow) => {
       maxDailyMg: 0,
       lastDose: null,
       intervals: [],
+      maxSingleDoseMg: 0,
     },
     EI: {
       count: 0,
@@ -171,11 +286,11 @@ const calculateStats = (rawIntakes, daysToShow) => {
       maxDailyMg: 0,
       lastDose: null,
       intervals: [],
+      maxSingleDoseMg: 0,
     },
   };
 
   const getDayKey = (date) => {
-    // Use local date parts to avoid UTC offset issues
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const d = String(date.getDate()).padStart(2, "0");
@@ -202,6 +317,7 @@ const calculateStats = (rawIntakes, daysToShow) => {
     const date = intake.timestamp;
     const key = getDayKey(date);
     const hour = date.getHours();
+    const dow = date.getDay(); // 0=Sun..6=Sat
     const patientId = intake.patientId || "AH";
     const dosage = parseFloat(intake.dosage) || 0;
     const unit = intake.unit || "mg";
@@ -221,6 +337,9 @@ const calculateStats = (rawIntakes, daysToShow) => {
       hourlyData[hour][`${patientId}_mg`] += mg;
     }
 
+    // Weekly heatmap
+    weeklyData[dow][patientId] += 1;
+
     // Patient stats
     if (patientStats[patientId]) {
       patientStats[patientId].count += 1;
@@ -229,7 +348,10 @@ const calculateStats = (rawIntakes, daysToShow) => {
         (patientStats[patientId].subtypes[subtype] || 0) + 1;
       patientStats[patientId].intervals.push(intake);
 
-      // Track most recent dose
+      if (mg > patientStats[patientId].maxSingleDoseMg) {
+        patientStats[patientId].maxSingleDoseMg = mg;
+      }
+
       if (
         !patientStats[patientId].lastDose ||
         date > patientStats[patientId].lastDose
@@ -244,6 +366,20 @@ const calculateStats = (rawIntakes, daysToShow) => {
     a.fullDate.localeCompare(b.fullDate),
   );
 
+  // Cumulative data (running total of mg per patient)
+  let cumAH = 0;
+  let cumEI = 0;
+  const cumulativeData = chartData.map((day) => {
+    cumAH += day.AH_mg;
+    cumEI += day.EI_mg;
+    return {
+      date: day.date,
+      fullDate: day.fullDate,
+      AH_cum: Math.round(cumAH),
+      EI_cum: Math.round(cumEI),
+    };
+  });
+
   // Calculate max daily mg per patient
   chartData.forEach((day) => {
     ["AH", "EI"].forEach((pid) => {
@@ -253,22 +389,34 @@ const calculateStats = (rawIntakes, daysToShow) => {
     });
   });
 
-  // Calculate averages:
-  // Use number of days that actually have intakes for a more meaningful average,
-  // but allow dividing by daysToShow for "overall period" average.
+  // Streak and consistency
+  const streak = calculateStreak(chartData);
+  const consistency = calculateConsistency(chartData);
+
+  // Averages and interval analysis
   ["AH", "EI"].forEach((pid) => {
     const ps = patientStats[pid];
-
-    // Count days with at least 1 intake for this patient
     const daysWithData = chartData.filter((d) => d[pid] > 0).length;
     const effectiveDays = Math.max(1, daysWithData);
 
     ps.avgDailyMg = (ps.mg / effectiveDays).toFixed(0);
     ps.avgDailyCount = (ps.count / effectiveDays).toFixed(1);
     ps.avgIntervalHours = calculateIntervals(ps.intervals);
+
+    // Per-interval history for chart
+    ps.intervalHistory = buildIntervalHistory(ps.intervals);
+
+    // Min/max interval (excluding outliers >48h, already filtered in buildIntervalHistory)
+    if (ps.intervalHistory.length > 0) {
+      const hrs = ps.intervalHistory.map((x) => x.hours);
+      ps.minIntervalHours = Math.min(...hrs).toFixed(1);
+      ps.maxIntervalHours = Math.max(...hrs).toFixed(1);
+    } else {
+      ps.minIntervalHours = null;
+      ps.maxIntervalHours = null;
+    }
   });
 
-  // Format subtype data for pie charts
   const getPieData = (subtypes) => {
     return Object.entries(subtypes)
       .map(([name, value]) => ({ name, value }))
@@ -285,6 +433,10 @@ const calculateStats = (rawIntakes, daysToShow) => {
       EI: getPieData(patientStats.EI.subtypes),
     },
     totalIntakes: filteredIntakes.length,
+    weeklyHeatmap: weeklyData,
+    cumulativeData,
+    streak,
+    consistency,
   };
 };
 
@@ -315,6 +467,40 @@ const StatCard = ({ title, value, subtext, icon: Icon, color }) => (
     />
   </div>
 );
+
+const SectionTitle = ({ icon: Icon, children }) => (
+  <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-5 flex items-center gap-2">
+    <Icon className="opacity-70" />
+    {children}
+  </h3>
+);
+
+const ChartCard = ({ children, delay = 0, className = "" }) => (
+  <div
+    className={`rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 ${className}`}
+    style={{
+      background: "var(--surface)",
+      animationDelay: `${delay}ms`,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const commonTooltipStyle = {
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: "12px",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+  fontSize: "12px",
+};
+
+const commonAxisStyle = {
+  stroke: "var(--text-secondary)",
+  tick: { fill: "var(--text-secondary)", fontSize: 9 },
+  tickLine: false,
+  axisLine: false,
+};
 
 export default function Statistics({ onBack }) {
   const [intakes, setIntakes] = useState([]);
@@ -368,13 +554,52 @@ export default function Statistics({ onBack }) {
     );
   }
 
-  const { patientStats, last24hStats, chartData, hourlyData, pieData } = stats;
+  const {
+    patientStats,
+    last24hStats,
+    chartData,
+    hourlyData,
+    pieData,
+    weeklyHeatmap,
+    cumulativeData,
+    streak,
+    consistency,
+  } = stats;
+
+  const avgIntervalNum = (pid) =>
+    patientStats[pid].avgIntervalHours != null
+      ? parseFloat(patientStats[pid].avgIntervalHours)
+      : null;
+
+  // Merge AH + EI interval histories for combined chart, keeping patient label
+  const mergedIntervalHistory = [
+    ...patientStats.AH.intervalHistory.map((d) => ({
+      ...d,
+      patient: "AH",
+      AH_hours: d.hours,
+      EI_hours: null,
+    })),
+    ...patientStats.EI.intervalHistory.map((d) => ({
+      ...d,
+      patient: "EI",
+      AH_hours: null,
+      EI_hours: d.hours,
+    })),
+  ].sort((a, b) => a.date - b.date);
+
+  // Build per-day interval for each patient separately for line chart
+  // We'll use two separate line datasets overlaid
+  const ahIntervals = patientStats.AH.intervalHistory;
+  const eiIntervals = patientStats.EI.intervalHistory;
 
   return (
     <div className="flex flex-col gap-5 pb-10">
       {/* Date Range Selector */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 p-1 rounded-2xl border border-[var(--border)]" style={{ background: "var(--surface)" }}>
+        <div
+          className="flex gap-1 p-1 rounded-2xl border border-[var(--border)]"
+          style={{ background: "var(--surface)" }}
+        >
           {[
             { v: "3", label: "3д" },
             { v: "7", label: "7д" },
@@ -389,8 +614,7 @@ export default function Statistics({ onBack }) {
               style={{
                 background:
                   dateRange === v ? "var(--accent-primary)" : "transparent",
-                color:
-                  dateRange === v ? "#fff" : "var(--text-secondary)",
+                color: dateRange === v ? "#fff" : "var(--text-secondary)",
               }}
             >
               {label}
@@ -449,7 +673,7 @@ export default function Statistics({ onBack }) {
         </div>
       </div>
 
-      {/* Summary Stats Grid */}
+      {/* Summary Stats Grid — row 1: intervals */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           title="Середній інтервал AH"
@@ -459,9 +683,9 @@ export default function Statistics({ onBack }) {
               : "—"
           }
           subtext={
-            patientStats.AH.avgIntervalHours == null
-              ? "Недостатньо даних"
-              : "Між прийомами"
+            patientStats.AH.minIntervalHours != null
+              ? `мін ${patientStats.AH.minIntervalHours} / макс ${patientStats.AH.maxIntervalHours} год`
+              : "Недостатньо даних"
           }
           icon={FaHourglassHalf}
           color="var(--accent-ah)"
@@ -474,9 +698,9 @@ export default function Statistics({ onBack }) {
               : "—"
           }
           subtext={
-            patientStats.EI.avgIntervalHours == null
-              ? "Недостатньо даних"
-              : "Між прийомами"
+            patientStats.EI.minIntervalHours != null
+              ? `мін ${patientStats.EI.minIntervalHours} / макс ${patientStats.EI.maxIntervalHours} год`
+              : "Недостатньо даних"
           }
           icon={FaHourglassHalf}
           color="var(--accent-ei)"
@@ -484,28 +708,54 @@ export default function Statistics({ onBack }) {
         <StatCard
           title="Загалом мг AH"
           value={Math.round(patientStats.AH.mg)}
-          subtext={`~${patientStats.AH.avgDailyMg} мг/день`}
+          subtext={`~${patientStats.AH.avgDailyMg} мг/день · макс разова ${Math.round(patientStats.AH.maxSingleDoseMg)} мг`}
           icon={FaSyringe}
           color="var(--accent-ah)"
         />
         <StatCard
           title="Загалом мг EI"
           value={Math.round(patientStats.EI.mg)}
-          subtext={`~${patientStats.EI.avgDailyMg} мг/день`}
+          subtext={`~${patientStats.EI.avgDailyMg} мг/день · макс разова ${Math.round(patientStats.EI.maxSingleDoseMg)} мг`}
           icon={FaDroplet}
           color="var(--accent-ei)"
         />
       </div>
 
-      {/* Daily Dosage Chart */}
-      <div
-        className="rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100"
-        style={{ background: "var(--surface)" }}
-      >
-        <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-5 flex items-center gap-2">
-          <FaChartLine className="opacity-70" />
-          Динаміка дозування (мг)
-        </h3>
+      {/* Summary Stats Grid — row 2: streak & consistency */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          title="Серія активних днів"
+          value={`${streak} дн`}
+          subtext="Поспіль днів з прийомами"
+          icon={FaFire}
+          color="var(--accent-primary)"
+        />
+        <StatCard
+          title="Регулярність"
+          value={`${consistency}%`}
+          subtext={`Днів з прийомами за ${dateRange}д`}
+          icon={FaCalendarCheck}
+          color="var(--accent-primary)"
+        />
+        <StatCard
+          title="Прийомів/день AH"
+          value={patientStats.AH.avgDailyCount}
+          subtext={`Макс добова ${Math.round(patientStats.AH.maxDailyMg)} мг`}
+          icon={FaBullseye}
+          color="var(--accent-ah)"
+        />
+        <StatCard
+          title="Прийомів/день EI"
+          value={patientStats.EI.avgDailyCount}
+          subtext={`Макс добова ${Math.round(patientStats.EI.maxDailyMg)} мг`}
+          icon={FaBullseye}
+          color="var(--accent-ei)"
+        />
+      </div>
+
+      {/* Daily Dosage Area Chart */}
+      <ChartCard delay={100}>
+        <SectionTitle icon={FaChartLine}>Динаміка дозування (мг)</SectionTitle>
         <div className="h-[220px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
@@ -560,13 +810,7 @@ export default function Statistics({ onBack }) {
                 axisLine={false}
               />
               <Tooltip
-                contentStyle={{
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "12px",
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                  fontSize: "12px",
-                }}
+                contentStyle={commonTooltipStyle}
                 labelStyle={{
                   color: "var(--text-primary)",
                   fontWeight: "bold",
@@ -614,17 +858,351 @@ export default function Statistics({ onBack }) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </ChartCard>
+
+      {/* Daily Intake Count Bar Chart */}
+      <ChartCard delay={150}>
+        <SectionTitle icon={FaSyringe}>Кількість прийомів по днях</SectionTitle>
+        <div className="h-[180px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+              barCategoryGap="30%"
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--border)"
+                vertical={false}
+                opacity={0.5}
+              />
+              <XAxis
+                dataKey="date"
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                dy={8}
+                interval={Math.max(0, Math.floor(chartData.length / 6))}
+              />
+              <YAxis
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--border)", opacity: 0.15 }}
+                contentStyle={commonTooltipStyle}
+                labelStyle={{
+                  color: "var(--text-primary)",
+                  fontWeight: "bold",
+                  marginBottom: "4px",
+                }}
+                itemStyle={{ color: "var(--text-secondary)" }}
+              />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "12px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}
+              />
+              <Bar
+                dataKey="AH"
+                name="AH"
+                fill="var(--accent-ah)"
+                radius={[4, 4, 0, 0]}
+                animationDuration={1000}
+                fillOpacity={0.85}
+              />
+              <Bar
+                dataKey="EI"
+                name="EI"
+                fill="var(--accent-ei)"
+                radius={[4, 4, 0, 0]}
+                animationDuration={1000}
+                fillOpacity={0.85}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
+
+      {/* Interval History Line Chart */}
+      {(ahIntervals.length >= 2 || eiIntervals.length >= 2) && (
+        <ChartCard delay={200}>
+          <SectionTitle icon={FaHourglassHalf}>
+            Динаміка інтервалів між прийомами (год)
+          </SectionTitle>
+          <div className="grid grid-cols-1 gap-4">
+            {/* AH intervals */}
+            {ahIntervals.length >= 2 && (
+              <div>
+                <div
+                  className="text-[10px] font-black uppercase tracking-widest mb-2 text-center"
+                  style={{ color: "var(--accent-ah)" }}
+                >
+                  AH — {ahIntervals.length} інтервалів · сер.{" "}
+                  {patientStats.AH.avgIntervalHours} год
+                </div>
+                <div className="h-[140px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={ahIntervals}
+                      margin={{ top: 5, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                        opacity={0.5}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        stroke="var(--text-secondary)"
+                        tick={{ fill: "var(--text-secondary)", fontSize: 8 }}
+                        tickLine={false}
+                        axisLine={false}
+                        dy={6}
+                        interval={Math.max(
+                          0,
+                          Math.floor(ahIntervals.length / 5),
+                        )}
+                      />
+                      <YAxis
+                        stroke="var(--text-secondary)"
+                        tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                        tickLine={false}
+                        axisLine={false}
+                        unit="г"
+                        domain={["auto", "auto"]}
+                      />
+                      <Tooltip
+                        contentStyle={commonTooltipStyle}
+                        labelStyle={{
+                          color: "var(--text-primary)",
+                          fontWeight: "bold",
+                        }}
+                        itemStyle={{ color: "var(--text-secondary)" }}
+                        formatter={(val) => [`${val} год`, "Інтервал"]}
+                      />
+                      {patientStats.AH.avgIntervalHours != null && (
+                        <ReferenceLine
+                          y={parseFloat(patientStats.AH.avgIntervalHours)}
+                          stroke="var(--accent-ah)"
+                          strokeDasharray="5 3"
+                          strokeOpacity={0.5}
+                          strokeWidth={1.5}
+                        />
+                      )}
+                      <Line
+                        type="monotone"
+                        dataKey="hours"
+                        name="Інтервал"
+                        stroke="var(--accent-ah)"
+                        strokeWidth={2}
+                        dot={{ r: 2.5, fill: "var(--accent-ah)", strokeWidth: 0 }}
+                        activeDot={{ r: 5, strokeWidth: 0 }}
+                        animationDuration={1000}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+            {/* EI intervals */}
+            {eiIntervals.length >= 2 && (
+              <div>
+                <div
+                  className="text-[10px] font-black uppercase tracking-widest mb-2 text-center"
+                  style={{ color: "var(--accent-ei)" }}
+                >
+                  EI — {eiIntervals.length} інтервалів · сер.{" "}
+                  {patientStats.EI.avgIntervalHours} год
+                </div>
+                <div className="h-[140px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={eiIntervals}
+                      margin={{ top: 5, right: 10, left: -25, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                        opacity={0.5}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        stroke="var(--text-secondary)"
+                        tick={{ fill: "var(--text-secondary)", fontSize: 8 }}
+                        tickLine={false}
+                        axisLine={false}
+                        dy={6}
+                        interval={Math.max(
+                          0,
+                          Math.floor(eiIntervals.length / 5),
+                        )}
+                      />
+                      <YAxis
+                        stroke="var(--text-secondary)"
+                        tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                        tickLine={false}
+                        axisLine={false}
+                        unit="г"
+                        domain={["auto", "auto"]}
+                      />
+                      <Tooltip
+                        contentStyle={commonTooltipStyle}
+                        labelStyle={{
+                          color: "var(--text-primary)",
+                          fontWeight: "bold",
+                        }}
+                        itemStyle={{ color: "var(--text-secondary)" }}
+                        formatter={(val) => [`${val} год`, "Інтервал"]}
+                      />
+                      {patientStats.EI.avgIntervalHours != null && (
+                        <ReferenceLine
+                          y={parseFloat(patientStats.EI.avgIntervalHours)}
+                          stroke="var(--accent-ei)"
+                          strokeDasharray="5 3"
+                          strokeOpacity={0.5}
+                          strokeWidth={1.5}
+                        />
+                      )}
+                      <Line
+                        type="monotone"
+                        dataKey="hours"
+                        name="Інтервал"
+                        stroke="var(--accent-ei)"
+                        strokeWidth={2}
+                        dot={{ r: 2.5, fill: "var(--accent-ei)", strokeWidth: 0 }}
+                        activeDot={{ r: 5, strokeWidth: 0 }}
+                        animationDuration={1000}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Cumulative Dosage Chart */}
+      <ChartCard delay={250}>
+        <SectionTitle icon={FaArrowTrendUp}>
+          Накопичене дозування (мг)
+        </SectionTitle>
+        <div className="h-[200px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={cumulativeData}
+              margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="cumAH" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--accent-ah)"
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--accent-ah)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+                <linearGradient id="cumEI" x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor="var(--accent-ei)"
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--accent-ei)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--border)"
+                vertical={false}
+                opacity={0.5}
+              />
+              <XAxis
+                dataKey="date"
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                dy={8}
+                interval={Math.max(0, Math.floor(cumulativeData.length / 6))}
+              />
+              <YAxis
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}к` : v)}
+              />
+              <Tooltip
+                contentStyle={commonTooltipStyle}
+                labelStyle={{
+                  color: "var(--text-primary)",
+                  fontWeight: "bold",
+                  marginBottom: "4px",
+                }}
+                itemStyle={{ color: "var(--text-secondary)" }}
+                formatter={(val) => [`${val} мг`, ""]}
+                cursor={{
+                  stroke: "var(--text-secondary)",
+                  strokeWidth: 1,
+                  strokeDasharray: "4 4",
+                  opacity: 0.5,
+                }}
+              />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "16px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="AH_cum"
+                name="AH накоп."
+                stroke="var(--accent-ah)"
+                fill="url(#cumAH)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                animationDuration={1200}
+              />
+              <Area
+                type="monotone"
+                dataKey="EI_cum"
+                name="EI накоп."
+                stroke="var(--accent-ei)"
+                fill="url(#cumEI)"
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+                animationDuration={1200}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
 
       {/* Hourly Distribution */}
-      <div
-        className="rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200"
-        style={{ background: "var(--surface)" }}
-      >
-        <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.3em] mb-5 flex items-center gap-2">
-          <FaClock className="opacity-70" />
-          Розподіл по годинах
-        </h3>
+      <ChartCard delay={300}>
+        <SectionTitle icon={FaClock}>Розподіл по годинах</SectionTitle>
         <div className="h-[180px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -655,12 +1233,7 @@ export default function Statistics({ onBack }) {
               />
               <Tooltip
                 cursor={{ fill: "var(--border)", opacity: 0.15 }}
-                contentStyle={{
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "12px",
-                  fontSize: "12px",
-                }}
+                contentStyle={commonTooltipStyle}
                 labelFormatter={(val) =>
                   `${formatHour(val)} – ${formatHour(val + 1)}`
                 }
@@ -694,15 +1267,91 @@ export default function Statistics({ onBack }) {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </ChartCard>
+
+      {/* Weekly Activity Pattern */}
+      <ChartCard delay={350}>
+        <SectionTitle icon={FaCalendarCheck}>
+          Активність по днях тижня
+        </SectionTitle>
+        <div className="h-[180px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={weeklyHeatmap}
+              margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+              barCategoryGap="20%"
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--border)"
+                vertical={false}
+                opacity={0.5}
+              />
+              <XAxis
+                dataKey="day"
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                dy={6}
+              />
+              <YAxis
+                stroke="var(--text-secondary)"
+                tick={{ fill: "var(--text-secondary)", fontSize: 9 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--border)", opacity: 0.15 }}
+                contentStyle={commonTooltipStyle}
+                labelStyle={{
+                  color: "var(--text-primary)",
+                  fontWeight: "bold",
+                  marginBottom: "4px",
+                }}
+                itemStyle={{ color: "var(--text-secondary)" }}
+              />
+              <Legend
+                wrapperStyle={{
+                  paddingTop: "12px",
+                  fontSize: "11px",
+                  color: "var(--text-secondary)",
+                }}
+              />
+              <Bar
+                dataKey="AH"
+                name="AH"
+                stackId="b"
+                fill="var(--accent-ah)"
+                radius={[0, 0, 3, 3]}
+                animationDuration={1000}
+                fillOpacity={0.85}
+              />
+              <Bar
+                dataKey="EI"
+                name="EI"
+                stackId="b"
+                fill="var(--accent-ei)"
+                radius={[3, 3, 0, 0]}
+                animationDuration={1000}
+                fillOpacity={0.85}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
 
       {/* Subtype Distribution */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {["AH", "EI"].map((pid, idx) => (
           <div
             key={pid}
-            className={`rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700 delay-${300 + idx * 100}`}
-            style={{ background: "var(--surface)" }}
+            className="rounded-3xl p-5 border border-[var(--border)] animate-in fade-in slide-in-from-bottom-8 duration-700"
+            style={{
+              background: "var(--surface)",
+              animationDelay: `${400 + idx * 100}ms`,
+            }}
           >
             <h3
               className="text-[10px] font-black uppercase tracking-[0.3em] mb-4 text-center"
