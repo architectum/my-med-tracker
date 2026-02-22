@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { GiWaterDrop } from "react-icons/gi";
 import { FaSyringe, FaPills, FaGhost } from "react-icons/fa";
-import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { addDoc, collection, Timestamp, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import SyringeSlider from "./SyringeSlider";
 import SubtypeSelector from "./SubtypeSelector";
@@ -90,6 +90,30 @@ export default function IntakePanel({ onAddSuccess }) {
         timestamp: Timestamp.fromDate(intakeTime),
         createdAt: Timestamp.now(),
       });
+
+      // Deduct from bank
+      if (active.dosage > 0) {
+        const amountToDeduct = active.unit === "mg" ? active.dosage : Math.round(active.dosage * 20);
+        const bankQuery = query(collection(db, "bank_logs"), orderBy("timestamp", "desc"), limit(1));
+        const bankSnapshot = await getDocs(bankQuery);
+
+        if (!bankSnapshot.empty) {
+          const latestBankLog = bankSnapshot.docs[0].data();
+          const newRemainder = Math.max(0, latestBankLog.currentRemainder - amountToDeduct);
+          const noteText = active.subtype === "LOST" ? "LOST" : `Прийом ${finalPatientId} ${active.subtype || ""}`.trim();
+
+          await addDoc(collection(db, "bank_logs"), {
+            timestamp: Timestamp.fromDate(intakeTime),
+            createdAt: Timestamp.now(),
+            totalCapacity: latestBankLog.totalCapacity,
+            currentRemainder: Math.round(newRemainder * 10) / 10,
+            type: "intake",
+            amount: -amountToDeduct,
+            note: noteText,
+          });
+        }
+      }
+
       onAddSuccess(
         `${finalPatientId}: Додано ${active.dosage} ${active.unit}${
           active.subtype === "LOST" ? " (LOST)" : ""

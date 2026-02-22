@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, query, orderBy, onSnapshot, addDoc, Timestamp } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, Timestamp, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { formatDateInput, formatTimeInput } from "../utils/time";
 
@@ -285,30 +285,74 @@ function BankModal({ logs, onClose }) {
                                 const pct = log.totalCapacity > 0 ? (log.currentRemainder / log.totalCapacity) * 100 : 0;
                                 const tsDate = log.timestamp?.toDate ? log.timestamp.toDate() : new Date();
 
+                                const handleDelete = async () => {
+                                    if (window.confirm("Видалити цей запис?")) {
+                                        await deleteDoc(doc(db, "bank_logs", log.id));
+                                    }
+                                };
+
+                                const handleEdit = async () => {
+                                    const newRemainder = window.prompt("Введіть новий залишок (мг):", log.currentRemainder);
+                                    if (newRemainder !== null && newRemainder !== "") {
+                                        const num = Number(newRemainder);
+                                        if (!isNaN(num)) {
+                                            await updateDoc(doc(db, "bank_logs", log.id), {
+                                                currentRemainder: num
+                                            });
+                                        }
+                                    }
+                                };
+
                                 return (
                                     <div
                                         key={log.id}
-                                        className="flex justify-between items-center p-3 rounded-xl"
+                                        className="flex flex-col gap-2 p-3 rounded-xl"
                                         style={{
                                             background: "rgba(255,255,255,0.04)",
                                             border: "1px solid var(--glass-border)",
                                         }}
                                     >
-                                        <div>
-                                            <div className="text-xs font-black text-[var(--text-primary)] tabular-nums">
-                                                {tsDate.toLocaleDateString("uk-UA", { day: '2-digit', month: '2-digit', year: '2-digit' })}  <span className="opacity-50 mx-1">•</span> {tsDate.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="text-xs font-black text-[var(--text-primary)] tabular-nums">
+                                                    {tsDate.toLocaleDateString("uk-UA", { day: '2-digit', month: '2-digit', year: '2-digit' })}  <span className="opacity-50 mx-1">•</span> {tsDate.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}
+                                                </div>
+                                                <div className="text-[9px] uppercase font-black tracking-wider text-[var(--text-secondary)] mt-0.5" >
+                                                    {log.note || "Оновлення"}
+                                                </div>
                                             </div>
-                                            <div className="text-[9px] uppercase font-black tracking-wider text-[var(--text-secondary)] mt-0.5" >
-                                                Оновлення
+                                            <div className="text-right">
+                                                <div className="text-sm font-black text-[var(--text-primary)] tabular-nums flex items-center gap-2 justify-end">
+                                                    {log.amount && (
+                                                        <span className={log.amount < 0 ? "text-red-400" : "text-green-400"}>
+                                                            {log.amount > 0 ? "+" : ""}{log.amount}мг
+                                                        </span>
+                                                    )}
+                                                    <span>{log.currentRemainder} <span className="text-[10px] font-bold opacity-60">/ {log.totalCapacity} мг</span></span>
+                                                </div>
+                                                <div className="text-[10px] font-black tracking-wide mt-0.5" style={{ color: "var(--text-primary)" }}>
+                                                    {Math.round(pct)}%
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-sm font-black text-[var(--text-primary)] tabular-nums">
-                                                {log.currentRemainder} <span className="text-[10px] font-bold opacity-60">/ {log.totalCapacity} мг</span>
-                                            </div>
-                                            <div className="text-[10px] font-black tracking-wide mt-0.5" style={{ color: "var(--text-primary)" }}>
-                                                {Math.round(pct)}%
-                                            </div>
+                                        {/* Action buttons */}
+                                        <div className="flex justify-end gap-2 mt-1 pt-2 border-t border-[var(--glass-border)]">
+                                            <button 
+                                                type="button" 
+                                                onClick={handleEdit}
+                                                className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md transition-all active:scale-95"
+                                                style={{ background: "rgba(255,255,255,0.08)", color: "var(--text-primary)" }}
+                                            >
+                                                Редагувати
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleDelete}
+                                                className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md transition-all active:scale-95"
+                                                style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}
+                                            >
+                                                Видалити
+                                            </button>
                                         </div>
                                     </div>
                                 );
