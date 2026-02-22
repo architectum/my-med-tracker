@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Notification from "./components/Notification";
 import ThemeSelector from "./components/ThemeSelector";
 import IntakeDetailsModal from "./components/IntakeDetailsModal";
 import IntakePanel from "./components/IntakePanel";
 import TimelineHistory from "./components/TimelineHistory";
+import CalendarView from "./components/CalendarView";
 import Statistics from "./components/Statistics";
 import { TIMELINE_TITLE_DEFAULT } from "./utils/time";
 
@@ -197,6 +198,17 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [selectedIntakeId, setSelectedIntakeId] = useState(null);
   const [activeIntake, setActiveIntake] = useState(null);
+
+  // Timeline mode: "timeline" | "calendar"
+  const [timelineMode, setTimelineMode] = useState("timeline");
+  // Calendar month heading
+  const [calendarHeading, setCalendarHeading] = useState("");
+
+  // Refs to trigger scroll inside child components
+  const scrollToNextDayRef = useRef(null);
+  const scrollToPrevDayRef = useRef(null);
+  const scrollToNextMonthRef = useRef(null);
+  const scrollToPrevMonthRef = useRef(null);
 
   // Apply theme whenever it changes (also persists to localStorage)
   useEffect(() => {
@@ -438,22 +450,83 @@ export default function App() {
             <IntakePanel onAddSuccess={setNotification} />
 
             <div
-              className="rounded-[2.5rem] pt-6 shadow-soft-strong border border-[var(--border)] flex flex-col overflow-hidden"
+              className="rounded-[2.5rem] pt-4 shadow-soft-strong border border-[var(--border)] flex flex-col overflow-hidden"
               style={{
                 background: "var(--surface)",
                 height: "600px",
               }}
             >
-              <h2 className="text-center text-xl font-black text-[var(--text-primary)] uppercase tracking-tight">
-                {timelineHeading}
-              </h2>
-              <TimelineHistory
-                onDayChange={(label) =>
-                  setTimelineHeading(label || TIMELINE_TITLE_DEFAULT)
-                }
-                selectedId={selectedIntakeId}
-                onSelectIntake={handleSelectIntake}
-              />
+              {/* Timeline header row: left arrow | heading | right arrow */}
+              <div className="flex items-center justify-between px-4 pb-2 flex-shrink-0">
+                {/* Left arrow */}
+                <button
+                  type="button"
+                  aria-label={timelineMode === "timeline" ? "Попередній день" : "Попередній місяць"}
+                  onClick={() => {
+                    if (timelineMode === "timeline") {
+                      scrollToPrevDayRef.current?.();
+                    } else {
+                      scrollToPrevMonthRef.current?.();
+                    }
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-opacity hover:opacity-80 active:opacity-60"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </button>
+
+                {/* Center heading — click to toggle mode */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setTimelineMode((m) => m === "timeline" ? "calendar" : "timeline")
+                  }
+                  className="flex-1 text-center text-xl font-black text-[var(--text-primary)] uppercase tracking-tight transition-opacity hover:opacity-70 active:opacity-50"
+                >
+                  {timelineMode === "timeline"
+                    ? timelineHeading
+                    : (calendarHeading || "Календар")}
+                </button>
+
+                {/* Right arrow */}
+                <button
+                  type="button"
+                  aria-label={timelineMode === "timeline" ? "Наступний день" : "Наступний місяць"}
+                  onClick={() => {
+                    if (timelineMode === "timeline") {
+                      scrollToNextDayRef.current?.();
+                    } else {
+                      scrollToNextMonthRef.current?.();
+                    }
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-full transition-opacity hover:opacity-80 active:opacity-60"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
+
+              {timelineMode === "timeline" ? (
+                <TimelineHistory
+                  onDayChange={(label) =>
+                    setTimelineHeading(label || TIMELINE_TITLE_DEFAULT)
+                  }
+                  selectedId={selectedIntakeId}
+                  onSelectIntake={handleSelectIntake}
+                  scrollToNextDay={scrollToNextDayRef}
+                  scrollToPrevDay={scrollToPrevDayRef}
+                />
+              ) : (
+                <CalendarView
+                  onMonthChange={setCalendarHeading}
+                  scrollToNextMonth={scrollToNextMonthRef}
+                  scrollToPrevMonth={scrollToPrevMonthRef}
+                />
+              )}
             </div>
           </div>
         )}

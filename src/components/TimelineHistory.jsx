@@ -50,7 +50,7 @@ const ZOOM_LEVELS = [
 // Base height for 24 hours in pixels (1 minute = 1 pixel at 1x zoom)
 const BASE_DAY_HEIGHT_PX = 1440;
 
-const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake }) => {
+const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNextDay, scrollToPrevDay }) => {
   const [intakes, setIntakes] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -132,6 +132,53 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake }) => {
   useEffect(() => {
     updateCurrentDayHeading();
   }, [updateCurrentDayHeading, sortedDays]);
+
+  // Scroll to start of next day (newer day, index - 1)
+  const handleScrollToNextDay = useCallback(() => {
+    if (!scrollRef.current || !sortedDays.length) return;
+    const containerTop = scrollRef.current.getBoundingClientRect().top;
+    const headerOffset = 48;
+    let activeIndex = 0;
+    dayRefs.current.forEach((ref, idx) => {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      const topOffset = rect.top - containerTop;
+      if (topOffset <= headerOffset) activeIndex = idx;
+    });
+    // Next day = index - 1 (newer, higher up in DOM)
+    const targetIndex = activeIndex - 1;
+    if (targetIndex >= 0 && dayRefs.current[targetIndex]?.current) {
+      dayRefs.current[targetIndex].current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [sortedDays]);
+
+  // Scroll to start of prev day (older day, index + 1)
+  const handleScrollToPrevDay = useCallback(() => {
+    if (!scrollRef.current || !sortedDays.length) return;
+    const containerTop = scrollRef.current.getBoundingClientRect().top;
+    const headerOffset = 48;
+    let activeIndex = 0;
+    dayRefs.current.forEach((ref, idx) => {
+      if (!ref.current) return;
+      const rect = ref.current.getBoundingClientRect();
+      const topOffset = rect.top - containerTop;
+      if (topOffset <= headerOffset) activeIndex = idx;
+    });
+    // Prev day = index + 1 (older, lower in DOM)
+    const targetIndex = activeIndex + 1;
+    if (targetIndex < sortedDays.length && dayRefs.current[targetIndex]?.current) {
+      dayRefs.current[targetIndex].current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [sortedDays]);
+
+  // Expose scroll handlers via callback props
+  useEffect(() => {
+    if (scrollToNextDay) scrollToNextDay.current = handleScrollToNextDay;
+  }, [scrollToNextDay, handleScrollToNextDay]);
+
+  useEffect(() => {
+    if (scrollToPrevDay) scrollToPrevDay.current = handleScrollToPrevDay;
+  }, [scrollToPrevDay, handleScrollToPrevDay]);
 
   // Convert time to pixel position (1440px = 24 hours at 1x zoom, scaled by zoomLevel)
   const getTimeTop = (date) => {
