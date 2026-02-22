@@ -6,6 +6,7 @@ import IntakePanel from "./components/IntakePanel";
 import TimelineHistory from "./components/TimelineHistory";
 import CalendarView from "./components/CalendarView";
 import Statistics from "./components/Statistics";
+import BankProgress from "./components/BankProgress";
 import { TIMELINE_TITLE_DEFAULT } from "./utils/time";
 
 // --- THEME LOADING ---
@@ -119,12 +120,12 @@ function applyTheme(theme) {
   root.style.setProperty(
     "--subtype-panel-bg",
     subtypePanel.bg ||
-      (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"),
+    (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"),
   );
   root.style.setProperty(
     "--subtype-panel-border",
     subtypePanel.border ||
-      (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
+    (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"),
   );
 
   const addButton = theme.addButton || {};
@@ -140,7 +141,7 @@ function applyTheme(theme) {
   root.style.setProperty(
     "--add-btn-border",
     addButton.border ||
-      (isDark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.12)"),
+    (isDark ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.12)"),
   );
   root.style.setProperty(
     "--add-btn-glow",
@@ -155,7 +156,7 @@ function applyTheme(theme) {
   root.style.setProperty(
     "--gradient-header-overlay",
     gradientHeader.overlay ||
-      (isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(255, 255, 255, 0.5)"),
+    (isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(255, 255, 255, 0.5)"),
   );
   root.style.setProperty(
     "--gradient-header-text",
@@ -256,7 +257,7 @@ export default function App() {
       }}
     >
       {/* Background ambient light */}
-      <div 
+      <div
         className="absolute inset-0 pointer-events-none z-[-2]"
         style={{
           background: `
@@ -268,7 +269,7 @@ export default function App() {
         }}
       />
       {/* Background subtle grid */}
-      <div 
+      <div
         className="absolute inset-0 pointer-events-none z-[-1]"
         style={{
           background: `
@@ -365,8 +366,8 @@ export default function App() {
               {activeView === VIEW.MAIN
                 ? "Med Tracker"
                 : activeView === VIEW.STATISTICS
-                ? "Statistics"
-                : "Theme"}
+                  ? "Statistics"
+                  : "Theme"}
             </span>
             {/* Accent dot row */}
             <div className="flex gap-1 mt-1">
@@ -470,7 +471,8 @@ export default function App() {
       <main className="flex-grow flex flex-col gap-4 max-w-3xl mx-auto w-full px-4 pb-6 min-h-0">
         {/* MAIN VIEW */}
         {activeView === VIEW.MAIN && (
-          <div className="flex flex-col gap-4 flex-grow page-enter-left">
+          <div className="flex flex-col gap-4 flex-grow page-enter-left pt-1">
+            <BankProgress />
             {/* Unified intake panel — works on all screen sizes */}
             <IntakePanel onAddSuccess={setNotification} />
 
