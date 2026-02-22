@@ -492,58 +492,72 @@ export default function App() {
                 className="absolute inset-x-0 top-0 h-px pointer-events-none z-10"
                 style={{ background: "linear-gradient(90deg, transparent 5%, var(--glass-shine) 50%, transparent 95%)" }}
               />
-              {/* Timeline header row: left arrow | heading | right arrow */}
-              <div className="flex items-center justify-between px-4 pb-2 flex-shrink-0">
-                {/* Left arrow */}
-                <button
-                  type="button"
-                  aria-label={timelineMode === "timeline" ? "Попередній день" : "Попередній місяць"}
-                  onClick={() => {
-                    if (timelineMode === "timeline") {
-                      scrollToPrevDayRef.current?.();
-                    } else {
-                      scrollToPrevMonthRef.current?.();
-                    }
-                  }}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-opacity hover:opacity-80 active:opacity-60"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                    <path d="M15 18l-6-6 6-6" />
-                  </svg>
-                </button>
-
-                {/* Center heading — click to toggle mode */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setTimelineMode((m) => m === "timeline" ? "calendar" : "timeline")
-                  }
-                  className="flex-1 text-center text-xl font-black text-[var(--text-primary)] uppercase tracking-tight transition-opacity hover:opacity-70 active:opacity-50"
-                >
+              {/* Timeline header: heading + mode switcher */}
+              <div className="flex items-center justify-between px-4 pb-3 flex-shrink-0">
+                {/* Current date/month heading */}
+                <span className="text-xl font-black uppercase tracking-tight select-none" style={{ color: "var(--text-primary)" }}>
                   {timelineMode === "timeline"
                     ? timelineHeading
                     : (calendarHeading || "Календар")}
-                </button>
+                </span>
 
-                {/* Right arrow */}
-                <button
-                  type="button"
-                  aria-label={timelineMode === "timeline" ? "Наступний день" : "Наступний місяць"}
-                  onClick={() => {
-                    if (timelineMode === "timeline") {
-                      scrollToNextDayRef.current?.();
-                    } else {
-                      scrollToNextMonthRef.current?.();
-                    }
+                {/* Segmented mode switcher */}
+                <div
+                  className="flex items-center rounded-xl p-0.5 gap-0.5"
+                  style={{
+                    background: "rgba(0,0,0,0.12)",
+                    border: "1px solid var(--glass-border)",
                   }}
-                  className="w-8 h-8 flex items-center justify-center rounded-full transition-opacity hover:opacity-80 active:opacity-60"
-                  style={{ color: "var(--text-secondary)" }}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </button>
+                  {/* Timeline tab */}
+                  <button
+                    type="button"
+                    onClick={() => setTimelineMode("timeline")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all duration-200"
+                    style={{
+                      background: timelineMode === "timeline" ? "var(--accent-primary)" : "transparent",
+                      color: timelineMode === "timeline"
+                        ? (currentTheme?.isDark ? "#000" : "#fff")
+                        : "var(--text-secondary)",
+                      boxShadow: timelineMode === "timeline" ? "0 2px 8px var(--shadow-color-strong)" : "none",
+                    }}
+                    aria-label="Таймлайн"
+                  >
+                    {/* Timeline icon */}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 flex-shrink-0">
+                      <line x1="12" y1="2" x2="12" y2="22" />
+                      <circle cx="12" cy="7" r="2" fill="currentColor" stroke="none" />
+                      <circle cx="12" cy="14" r="2" fill="currentColor" stroke="none" />
+                      <line x1="12" y1="7" x2="7" y2="7" />
+                      <line x1="12" y1="14" x2="17" y2="14" />
+                    </svg>
+                    <span>Стрічка</span>
+                  </button>
+
+                  {/* Calendar tab */}
+                  <button
+                    type="button"
+                    onClick={() => setTimelineMode("calendar")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all duration-200"
+                    style={{
+                      background: timelineMode === "calendar" ? "var(--accent-primary)" : "transparent",
+                      color: timelineMode === "calendar"
+                        ? (currentTheme?.isDark ? "#000" : "#fff")
+                        : "var(--text-secondary)",
+                      boxShadow: timelineMode === "calendar" ? "0 2px 8px var(--shadow-color-strong)" : "none",
+                    }}
+                    aria-label="Календар"
+                  >
+                    {/* Calendar icon */}
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 flex-shrink-0">
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>Календар</span>
+                  </button>
+                </div>
               </div>
 
               {timelineMode === "timeline" ? (

@@ -3,6 +3,9 @@ import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "../firebase";
 import { formatTime, formatViewedDate, getStartOfDay } from "../utils/time";
 
+// Minimum pixel gap between two intake bubbles before clustering kicks in
+const CLUSTER_THRESHOLD_PX = 38;
+
 const SUBTYPE_COLORS = {
   IV: "var(--subtype-iv)",
   IM: "var(--subtype-im)",
@@ -54,6 +57,7 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
   const [intakes, setIntakes] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [expandedClusters, setExpandedClusters] = useState(new Set());
   const scrollRef = useRef(null);
   const dayRefs = useRef([]);
 
@@ -221,6 +225,65 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
       setZoomLevel(ZOOM_LEVELS[currentIndex - 1].value);
     }
   };
+
+  // Convert a dosage to mg (ml → mg at 20:1 ratio)
+  const toMg = (dosage, unit) => {
+    const val = parseFloat(dosage) || 0;
+    return unit === "ml" ? val * 20 : val;
+  };
+
+  // Group intakes for one patient+day into clusters when they are too close.
+  // Returns an array of items, each either { type: 'single', intake } or
+  // { type: 'cluster', intakes, topPx, totalMg, lastTime }.
+  const computeClusters = useCallback(
+    (dayIntakes, patientId) => {
+      const items = dayIntakes
+        .filter((i) => i.patientId === patientId)
+        .slice()
+        .sort((a, b) => b.timestamp - a.timestamp); // newest (top) first
+
+      if (items.length === 0) return [];
+
+      // Assign pixel positions
+      const withPos = items.map((i) => ({ intake: i, topPx: getTimeTop(i.timestamp) }));
+
+      // Greedy clustering: scan top→bottom (ascending topPx).
+      // Since timeline is inverted (top = recent), sorted desc timestamp = ascending topPx.
+      const result = [];
+      let i = 0;
+      while (i < withPos.length) {
+        const group = [withPos[i]];
+        let j = i + 1;
+        while (j < withPos.length) {
+          const gap = withPos[j].topPx - group[group.length - 1].topPx;
+          if (gap < CLUSTER_THRESHOLD_PX) {
+            group.push(withPos[j]);
+            j++;
+          } else {
+            break;
+          }
+        }
+        if (group.length === 1) {
+          result.push({ type: "single", intake: group[0].intake, topPx: group[0].topPx });
+        } else {
+          const avgTop = group.reduce((s, g) => s + g.topPx, 0) / group.length;
+          const totalMg = group.reduce((s, g) => s + toMg(g.intake.dosage, g.intake.unit), 0);
+          // last time = the one with the latest timestamp (smallest topPx = first in group since desc-sorted)
+          const lastTime = group[0].intake.timestamp;
+          result.push({
+            type: "cluster",
+            intakes: group.map((g) => g.intake),
+            topPx: avgTop,
+            totalMg,
+            lastTime,
+          });
+        }
+        i = j;
+      }
+      return result;
+    },
+    [zoomLevel], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -668,154 +731,266 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
 
               {/* Intakes */}
               <div className="absolute inset-0 z-20">
-                {day.intakes.map((intake) => {
-                  const isNO = intake.patientId === "NO" || intake.subtype === "LOST";
-                  const isAH = intake.patientId === "AH";
-                  const isSelected = selectedId === intake.id;
-                  const top = getTimeTop(intake.timestamp);
-                  const subtype = intake.subtype;
+                {(() => {
+                  // Separate LOST/NO intakes — never clustered, always rendered as-is
+                  const noIntakes = day.intakes.filter(
+                    (i) => i.patientId === "NO" || i.subtype === "LOST",
+                  );
+                  // Cluster AH and EI separately
+                  const ahItems = computeClusters(day.intakes, "AH");
+                  const eiItems = computeClusters(day.intakes, "EI");
 
-                  const bubbleBg = isNO
-                    ? "transparent"
-                    : isAH
-                    ? "color-mix(in srgb, var(--accent-ah) 9%, transparent)"
-                    : "color-mix(in srgb, var(--accent-ei) 9%, transparent)";
+                  const renderSingleIntake = (intake, topPx) => {
+                    const isNO = intake.patientId === "NO" || intake.subtype === "LOST";
+                    const isAH = intake.patientId === "AH";
+                    const isSelected = selectedId === intake.id;
+                    const subtype = intake.subtype;
 
-                  // Get subtype-specific colors and effects
-                  const subtypeColor =
-                    SUBTYPE_COLORS[subtype] || "var(--text-secondary)";
-                  const subtypeGlow = SUBTYPE_GLOWS[subtype] || "none";
-                  const subtypeBorderColor = isNO 
-                    ? "rgba(255,255,255,0.15)"
-                    : SUBTYPE_BORDER_COLORS[subtype] || "rgba(255,255,255,0.55)";
+                    const bubbleBg = isNO
+                      ? "transparent"
+                      : isAH
+                      ? "color-mix(in srgb, var(--accent-ah) 9%, transparent)"
+                      : "color-mix(in srgb, var(--accent-ei) 9%, transparent)";
 
-                  return (
-                    <div
-                      key={intake.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectIntake(isSelected ? null : intake);
-                      }}
-                      className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
-                        // NO/LOST in center, AH on left of left line, EI on right of right line
-                        isNO
-                          ? "left-1/2 justify-center"
-                          : !isAH
-                            ? "left-1/2 -ml-[9px] pr-5 justify-end"
-                            : "right-1/2 -mr-[9px] pl-5 justify-start"
-                      } ${selectedId && !isSelected ? "opacity-30" : isNO ? "opacity-40 hover:opacity-70" : "opacity-100"}`}
-                      style={{
-                        top: `${top}px`,
-                        transform: isNO ? "translate(-50%, -50%)" : "translateY(-50%)",
-                        width: "10em",
-                        zIndex: isNO ? 5 : 10,
-                      }}
-                    >
-                      {/* Connector dot with glow - positioned on the line */}
-                      {!isNO && (
-                        <div
-                          className={`absolute w-3 h-3 rounded-full border-2 z-10 ${
-                            // AH dots on left line (right side of AH card, touching left vertical line)
-                            // EI dots on right line (left side of EI card, touching right vertical line)
-                            !isAH ? "left-[13px]" : "right-[11px]"
-                          }`}
-                          style={{
-                            background: subtype
-                              ? subtypeColor
-                              : "var(--text-secondary)",
-                            borderColor: subtype
-                              ? subtypeColor
-                              : "var(--text-secondary)",
-                            opacity: 1,
-                          }}
-                        />
-                      )}
-                      {/* Colored Frame/Border for Subtype */}
+                    const subtypeColor = SUBTYPE_COLORS[subtype] || "var(--text-secondary)";
+                    const subtypeGlow = SUBTYPE_GLOWS[subtype] || "none";
+                    const subtypeBorderColor = isNO
+                      ? "rgba(255,255,255,0.15)"
+                      : SUBTYPE_BORDER_COLORS[subtype] || "rgba(255,255,255,0.55)";
 
+                    return (
                       <div
-                        className="px-3 py-2 rounded-2xl border relative flex flex-col items-center min-w-[70px]"
+                        key={intake.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectIntake(isSelected ? null : intake);
+                        }}
+                        className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
+                          isNO
+                            ? "left-1/2 justify-center"
+                            : !isAH
+                              ? "left-1/2 -ml-[9px] pr-5 justify-end"
+                              : "right-1/2 -mr-[9px] pl-5 justify-start"
+                        } ${selectedId && !isSelected ? "opacity-30" : isNO ? "opacity-40 hover:opacity-70" : "opacity-100"}`}
                         style={{
-                          background: bubbleBg,
-                          borderColor: subtypeBorderColor,
-                          borderStyle: isNO ? "dashed" : "solid",
-                          boxShadow: isSelected
-                            ? `0 18px 44px var(--shadow-color-strong), 0 0 20px var(--glow-light)`
-                            : isNO ? "none" : "0 5px 22px var(--shadow-color), 0 0 10px var(--glow-dark)",
-                          transform: isSelected ? "scale(1.09)" : "scale(1)",
+                          top: `${topPx}px`,
+                          transform: isNO ? "translate(-50%, -50%)" : "translateY(-50%)",
+                          width: "10em",
+                          zIndex: isNO ? 5 : 10,
                         }}
                       >
-                        <div className="flex items-center gap-1">
-                          <span
-                            className="text-sm font-black"
-                            style={{ color: "var(--text-primary)" }}
-                          >
-                            {intake.dosage}
-                          </span>
-                          <span
-                            className="text-[10px] font-black"
+                        {/* Connector dot */}
+                        {!isNO && (
+                          <div
+                            className={`absolute w-3 h-3 rounded-full border-2 z-10 ${
+                              !isAH ? "left-[13px]" : "right-[11px]"
+                            }`}
                             style={{
-                              color: "var(--text-secondary)",
-                              opacity: 0.7,
+                              background: subtype ? subtypeColor : "var(--text-secondary)",
+                              borderColor: subtype ? subtypeColor : "var(--text-secondary)",
+                              opacity: 1,
                             }}
-                          >
-                            {intake.unit}
-                          </span>
-                          {intake.unit === "ml" && (
-                            <span
-                              className="text-[9px] font-bold ml-0.5"
-                              style={{
-                                color: "var(--text-secondary)",
-                                opacity: 0.5,
-                              }}
-                            >
-                              ~{(parseFloat(intake.dosage) * 20).toFixed(0)} mg
-                            </span>
-                          )}
-                          <span
-                            className="text-[10px] font-semibold"
-                            style={{
-                              color: "var(--text-secondary)",
-                              opacity: 0.6,
-                            }}
-                          >
-                            {formatTime(intake.timestamp)}
-                          </span>
+                          />
+                        )}
 
-                          {subtype && (
-                            <span
-                              className={`absolute inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black z-0 ${
-                                isNO
-                                  ? "top-[-8px] left-1/2 -translate-x-1/2"
-                                  : isAH
-                                    ? "left-[-2px] ml-[-17px] top-[-5px]"
-                                    : "right-[-2px] mr-[-10px] top-[-5px]"
-                              }`}
-                              style={{
-                                backgroundColor: isNO ? "var(--text-secondary)" : subtypeColor,
-                                color: isNO ? "var(--surface)" : "white",
-                                opacity: 0.9,
-                                borderRadius: 100,
-                                transform: isNO 
-                                  ? "none" 
-                                  : isAH && (subtype == "IV+PO" || subtype == "VTRK")
-                                    ? "rotate(-45deg)"
-                                    : !isAH && (subtype == "IV+PO" || subtype == "VTRK")
-                                      ? "rotate(45deg)"
-                                      : "rotate(0deg)",
-                                boxShadow:
-                                  subtypeGlow !== "none" && !isNO
-                                    ? `0 0 10px ${subtypeColor}`
-                                    : "none",
-                              }}
-                            >
-                              {subtype}
+                        <div
+                          className="px-3 py-2 rounded-2xl border relative flex flex-col items-center min-w-[70px]"
+                          style={{
+                            background: bubbleBg,
+                            borderColor: subtypeBorderColor,
+                            borderStyle: isNO ? "dashed" : "solid",
+                            boxShadow: isSelected
+                              ? `0 18px 44px var(--shadow-color-strong), 0 0 20px var(--glow-light)`
+                              : isNO
+                              ? "none"
+                              : "0 5px 22px var(--shadow-color), 0 0 10px var(--glow-dark)",
+                            transform: isSelected ? "scale(1.09)" : "scale(1)",
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                              {intake.dosage}
                             </span>
-                          )}
+                            <span
+                              className="text-[10px] font-black"
+                              style={{ color: "var(--text-secondary)", opacity: 0.7 }}
+                            >
+                              {intake.unit}
+                            </span>
+                            {intake.unit === "ml" && (
+                              <span
+                                className="text-[9px] font-bold ml-0.5"
+                                style={{ color: "var(--text-secondary)", opacity: 0.5 }}
+                              >
+                                ~{(parseFloat(intake.dosage) * 20).toFixed(0)} mg
+                              </span>
+                            )}
+                            <span
+                              className="text-[10px] font-semibold"
+                              style={{ color: "var(--text-secondary)", opacity: 0.6 }}
+                            >
+                              {formatTime(intake.timestamp)}
+                            </span>
+
+                            {subtype && (
+                              <span
+                                className={`absolute inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black z-0 ${
+                                  isNO
+                                    ? "top-[-8px] left-1/2 -translate-x-1/2"
+                                    : isAH
+                                      ? "left-[-2px] ml-[-17px] top-[-5px]"
+                                      : "right-[-2px] mr-[-10px] top-[-5px]"
+                                }`}
+                                style={{
+                                  backgroundColor: isNO ? "var(--text-secondary)" : subtypeColor,
+                                  color: isNO ? "var(--surface)" : "white",
+                                  opacity: 0.9,
+                                  borderRadius: 100,
+                                  transform: isNO
+                                    ? "none"
+                                    : isAH && (subtype === "IV+PO" || subtype === "VTRK")
+                                    ? "rotate(-45deg)"
+                                    : !isAH && (subtype === "IV+PO" || subtype === "VTRK")
+                                    ? "rotate(45deg)"
+                                    : "rotate(0deg)",
+                                  boxShadow:
+                                    subtypeGlow !== "none" && !isNO
+                                      ? `0 0 10px ${subtypeColor}`
+                                      : "none",
+                                }}
+                              >
+                                {subtype}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    );
+                  };
+
+                  const renderClusterNode = (cluster, patientId) => {
+                    const isAH = patientId === "AH";
+                    const clusterKey = cluster.intakes.map((i) => i.id).join("_");
+                    const isExpanded = expandedClusters.has(clusterKey);
+                    const accentColor = isAH ? "var(--accent-ah)" : "var(--accent-ei)";
+                    const bubbleBg = isAH
+                      ? "color-mix(in srgb, var(--accent-ah) 12%, transparent)"
+                      : "color-mix(in srgb, var(--accent-ei) 12%, transparent)";
+                    const totalMgRounded = Math.round(cluster.totalMg * 10) / 10;
+
+                    const toggleExpand = (e) => {
+                      e.stopPropagation();
+                      setExpandedClusters((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(clusterKey)) {
+                          next.delete(clusterKey);
+                        } else {
+                          next.add(clusterKey);
+                        }
+                        return next;
+                      });
+                    };
+
+                    return (
+                      <div key={`cluster-${clusterKey}`}>
+                        {/* Cluster bubble */}
+                        <div
+                          onClick={toggleExpand}
+                          className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
+                            !isAH
+                              ? "left-1/2 -ml-[9px] pr-5 justify-end"
+                              : "right-1/2 -mr-[9px] pl-5 justify-start"
+                          } opacity-100`}
+                          style={{
+                            top: `${cluster.topPx}px`,
+                            transform: "translateY(-50%)",
+                            width: "10em",
+                            zIndex: 10,
+                          }}
+                        >
+                          {/* Cluster connector dot — double ring */}
+                          <div
+                            className={`absolute w-5 h-5 rounded-full z-10 flex items-center justify-center ${
+                              !isAH ? "left-[9px]" : "right-[7px]"
+                            }`}
+                            style={{
+                              // outer ring
+                              background: "var(--surface)",
+                              border: `3px solid ${accentColor}`,
+                              boxShadow: `0 0 0 2px var(--surface), 0 0 0 4px ${accentColor}`,
+                            }}
+                          >
+                            <span
+                              className="text-[9px] font-black leading-none"
+                              style={{ color: accentColor }}
+                            >
+                              {cluster.intakes.length}
+                            </span>
+                          </div>
+
+                          {/* Cluster panel */}
+                          <div
+                            className="px-3 py-2 rounded-2xl relative flex flex-col items-center min-w-[70px]"
+                            style={{
+                              background: bubbleBg,
+                              border: `2px solid ${accentColor}`,
+                              outline: `1px solid ${accentColor}`,
+                              outlineOffset: "2px",
+                              boxShadow: `0 5px 22px var(--shadow-color), 0 0 12px var(--glow-dark)`,
+                            }}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                                {totalMgRounded}
+                              </span>
+                              <span
+                                className="text-[10px] font-black"
+                                style={{ color: "var(--text-secondary)", opacity: 0.7 }}
+                              >
+                                mg
+                              </span>
+                              <span
+                                className="text-[10px] font-semibold"
+                                style={{ color: "var(--text-secondary)", opacity: 0.6 }}
+                              >
+                                {formatTime(cluster.lastTime)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expanded individual intakes */}
+                        {isExpanded &&
+                          cluster.intakes.map((intake) =>
+                            renderSingleIntake(intake, getTimeTop(intake.timestamp)),
+                          )}
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {/* NO/LOST intakes — always render individually, never clustered */}
+                      {noIntakes.map((intake) =>
+                        renderSingleIntake(intake, getTimeTop(intake.timestamp)),
+                      )}
+
+                      {/* AH clustered items */}
+                      {ahItems.map((item) =>
+                        item.type === "single"
+                          ? renderSingleIntake(item.intake, item.topPx)
+                          : renderClusterNode(item, "AH"),
+                      )}
+
+                      {/* EI clustered items */}
+                      {eiItems.map((item) =>
+                        item.type === "single"
+                          ? renderSingleIntake(item.intake, item.topPx)
+                          : renderClusterNode(item, "EI"),
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
 
               <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-30">
