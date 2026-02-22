@@ -16,6 +16,12 @@ const MAX_SCALE = 1.6;      // centre card scale
 const INFLUENCE = 2.5;      // how many card-widths the magnification spreads
 const TRAIL_CARDS = 5;      // empty spacer cards at the end
 
+// Bar chart constants
+const BAR_MAX_H = 44;       // px — tallest possible bar (at global max mg day)
+const BAR_MIN_H = 2;        // px — empty/no-intake day stub
+const BAR_W = 7;            // px — width of each patient bar
+const BAR_GAP = 2;          // px — gap between AH and EI bars
+
 const CalendarView = ({ onMonthChange, scrollToNextMonth, scrollToPrevMonth }) => {
   const [intakes, setIntakes] = useState([]);
   const scrollRef = useRef(null);
@@ -209,6 +215,29 @@ const CalendarView = ({ onMonthChange, scrollToNextMonth, scrollToPrevMonth }) =
     };
   };
 
+  // Global max mg across all active days — used to normalise bar heights
+  const globalMaxAhMg = useMemo(() => {
+    let max = 1;
+    allDays.forEach((d) => {
+      if (!d.hasIntakes) return;
+      const s = computeStats(d.intakes);
+      if (s.ahMg > max) max = s.ahMg;
+    });
+    return max;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDays]);
+
+  const globalMaxEiMg = useMemo(() => {
+    let max = 1;
+    allDays.forEach((d) => {
+      if (!d.hasIntakes) return;
+      const s = computeStats(d.intakes);
+      if (s.eiMg > max) max = s.eiMg;
+    });
+    return max;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDays]);
+
   // ── Toggle expanded ───────────────────────────────────────────────────────
   const toggleDay = (key) =>
     setExpandedDays((prev) => ({ ...prev, [key]: prev[key] === "detail" ? undefined : "detail" }));
@@ -240,17 +269,19 @@ const CalendarView = ({ onMonthChange, scrollToNextMonth, scrollToPrevMonth }) =
         className="cal-scroll-inner relative flex items-center h-full"
         style={{ width: `${totalContentW}px`, minWidth: "100%", padding: "0 16px" }}
       >
-        {/* Continuous horizontal line through dots */}
+        {/* Baseline — runs through the bottom of all bars */}
         {allDays.length > 0 && (
           <div
             className="absolute pointer-events-none"
             style={{
-              top: "calc(50% - 14px)",
+              // baseline sits at: bottom of card area minus text label space
+              // We'll align it to the bottom of where bars grow from
+              bottom: "calc(50% - 6px)",
               left: 16,
               width: `${allDays.length * CARD_STRIDE}px`,
-              height: "2px",
+              height: "1px",
               background: "var(--timeline-line)",
-              opacity: 0.4,
+              opacity: 0.3,
             }}
           />
         )}
@@ -264,42 +295,17 @@ const CalendarView = ({ onMonthChange, scrollToNextMonth, scrollToPrevMonth }) =
           const stats = hasIntakes ? computeStats(dayIntakes) : null;
           const dayLabel = date.toLocaleDateString("uk-UA", { day: "numeric", month: "numeric" });
 
-          if (!hasIntakes) {
-            // Inactive grey day
-            return (
-              <div
-                key={key}
-                ref={(el) => { cardRefs.current[index] = { current: el }; }}
-                className="relative flex flex-col items-center flex-shrink-0"
-                style={{
-                  width: `${CARD_W}px`,
-                  marginRight: `${CARD_GAP}px`,
-                  transform: `scale(${scale})`,
-                  transformOrigin: "center bottom",
-                  transition: "transform 0.15s ease-out",
-                  willChange: "transform",
-                }}
-              >
-                <span
-                  className="text-[8px] font-semibold text-center select-none"
-                  style={{ color: "var(--text-secondary)", opacity: 0.22, marginBottom: 6 }}
-                >
-                  {dayLabel}
-                </span>
-                <div
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: "50%",
-                    background: "var(--text-secondary)",
-                    opacity: 0.15,
-                  }}
-                />
-              </div>
-            );
-          }
+          // Bar heights — normalised independently per patient so each side uses its own scale
+          const ahH = hasIntakes && stats.ahMg > 0
+            ? BAR_MIN_H + Math.round((stats.ahMg / globalMaxAhMg) * (BAR_MAX_H - BAR_MIN_H))
+            : BAR_MIN_H;
+          const eiH = hasIntakes && stats.eiMg > 0
+            ? BAR_MIN_H + Math.round((stats.eiMg / globalMaxEiMg) * (BAR_MAX_H - BAR_MIN_H))
+            : BAR_MIN_H;
 
-          // Active day card
+          const ahOpacity = hasIntakes && stats.ahMg > 0 ? 1 : 0.12;
+          const eiOpacity = hasIntakes && stats.eiMg > 0 ? 1 : 0.12;
+
           return (
             <div
               key={key}
@@ -316,105 +322,120 @@ const CalendarView = ({ onMonthChange, scrollToNextMonth, scrollToPrevMonth }) =
                 willChange: "transform",
                 zIndex: Math.round(scale * 10),
               }}
-              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); setPressedKey(key); }}
-              onPointerUp={() => { setPressedKey(null); toggleDay(key); }}
+              onPointerDown={(e) => { if (hasIntakes) { e.currentTarget.setPointerCapture(e.pointerId); setPressedKey(key); } }}
+              onPointerUp={() => { setPressedKey(null); if (hasIntakes) toggleDay(key); }}
               onPointerLeave={() => setPressedKey(null)}
               onPointerCancel={() => setPressedKey(null)}
             >
+              {/* Stats above bars */}
+              <div
+                className="flex flex-col items-center"
+                style={{ minHeight: 48, justifyContent: "flex-end", marginBottom: 3 }}
+              >
+                {hasIntakes && (
+                  !isExpanded ? (
+                    <div style={{ animation: "calFadeIn 0.18s ease both" }} className="flex flex-col items-center">
+                      <span
+                        className="text-[10px] font-black text-center leading-tight"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {stats.totalMg}&thinsp;mg
+                      </span>
+                      <span
+                        className="text-[8px] font-semibold text-center leading-tight mt-0.5"
+                        style={{ color: "var(--text-secondary)", opacity: 0.55 }}
+                      >
+                        ~{stats.avgCount}&thinsp;пр.
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ animation: "calFadeIn 0.18s ease both" }} className="flex flex-col items-center">
+                      <span className="text-[9px] font-black text-center leading-tight" style={{ color: "var(--accent-ah)" }}>
+                        AH&thinsp;{stats.ahMg}&thinsp;mg
+                      </span>
+                      <span className="text-[8px] font-semibold text-center" style={{ color: "var(--accent-ah)", opacity: 0.65 }}>
+                        {stats.ahCount}&thinsp;пр.
+                      </span>
+                      <span className="text-[9px] font-black text-center leading-tight mt-0.5" style={{ color: "var(--accent-ei)" }}>
+                        EI&thinsp;{stats.eiMg}&thinsp;mg
+                      </span>
+                      <span className="text-[8px] font-semibold text-center" style={{ color: "var(--accent-ei)", opacity: 0.65 }}>
+                        {stats.eiCount}&thinsp;пр.
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* Bars — grow upward from baseline */}
+              <div
+                className="flex items-end"
+                style={{ gap: BAR_GAP, height: BAR_MAX_H + 4, alignItems: "flex-end" }}
+              >
+                {/* AH bar */}
+                <div
+                  style={{
+                    width: BAR_W,
+                    height: ahH,
+                    borderRadius: "3px 3px 1px 1px",
+                    background: isToday
+                      ? `linear-gradient(180deg, var(--accent-ah), color-mix(in srgb, var(--accent-ah) 55%, transparent))`
+                      : `linear-gradient(180deg, var(--accent-ah), color-mix(in srgb, var(--accent-ah) 40%, transparent))`,
+                    opacity: ahOpacity,
+                    boxShadow: hasIntakes && stats.ahMg > 0 && isToday
+                      ? "0 0 8px var(--accent-ah)"
+                      : hasIntakes && stats.ahMg > 0
+                      ? "0 0 4px color-mix(in srgb, var(--accent-ah) 50%, transparent)"
+                      : "none",
+                    transition: "height 0.4s cubic-bezier(0.34,1.2,0.64,1)",
+                  }}
+                />
+                {/* EI bar */}
+                <div
+                  style={{
+                    width: BAR_W,
+                    height: eiH,
+                    borderRadius: "3px 3px 1px 1px",
+                    background: isToday
+                      ? `linear-gradient(180deg, var(--accent-ei), color-mix(in srgb, var(--accent-ei) 55%, transparent))`
+                      : `linear-gradient(180deg, var(--accent-ei), color-mix(in srgb, var(--accent-ei) 40%, transparent))`,
+                    opacity: eiOpacity,
+                    boxShadow: hasIntakes && stats.eiMg > 0 && isToday
+                      ? "0 0 8px var(--accent-ei)"
+                      : hasIntakes && stats.eiMg > 0
+                      ? "0 0 4px color-mix(in srgb, var(--accent-ei) 50%, transparent)"
+                      : "none",
+                    transition: "height 0.4s cubic-bezier(0.34,1.2,0.64,1)",
+                  }}
+                />
+              </div>
+
+              {/* Pulse ring on today — sits at baseline */}
+              {isToday && (
+                <div
+                  style={{
+                    width: BAR_W * 2 + BAR_GAP + 6,
+                    height: 3,
+                    borderRadius: 2,
+                    background: "var(--accent-ah)",
+                    marginTop: 1,
+                    boxShadow: "0 0 8px var(--accent-ah)",
+                    animation: "calPing 2s ease-in-out infinite",
+                  }}
+                />
+              )}
+
               {/* Date label */}
               <span
-                className="text-[9px] font-black text-center select-none leading-tight"
+                className="text-[8px] font-black text-center select-none leading-tight mt-1.5"
                 style={{
-                  color: isToday ? "var(--accent-ah)" : "var(--text-primary)",
-                  opacity: isToday ? 1 : 0.85,
-                  marginBottom: 4,
-                  textShadow: isToday ? "0 0 10px var(--accent-ah)" : "none",
-                  transition: "text-shadow 0.3s ease",
+                  color: isToday ? "var(--accent-ah)" : "var(--text-secondary)",
+                  opacity: isToday ? 1 : hasIntakes ? 0.7 : 0.22,
+                  textShadow: isToday ? "0 0 8px var(--accent-ah)" : "none",
                 }}
               >
                 {dayLabel}
               </span>
-
-              {/* Dot */}
-              <div
-                style={{
-                  position: "relative",
-                  width: 13,
-                  height: 13,
-                  borderRadius: "50%",
-                  background: isToday ? "var(--accent-ah)" : "var(--accent-primary)",
-                  boxShadow: isToday
-                    ? "0 0 12px var(--accent-ah), 0 0 24px var(--accent-ah)"
-                    : "0 0 7px var(--accent-primary)",
-                  zIndex: 10,
-                  flexShrink: 0,
-                  transition: "box-shadow 0.3s ease",
-                }}
-              >
-                {/* Pulse ring on today */}
-                {isToday && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: -3,
-                      borderRadius: "50%",
-                      border: "1.5px solid var(--accent-ah)",
-                      opacity: 0,
-                      animation: "calPing 2s ease-in-out infinite",
-                    }}
-                  />
-                )}
-              </div>
-
-              {/* Stats */}
-              <div
-                className="flex flex-col items-center"
-                style={{ marginTop: 5, minHeight: 52 }}
-              >
-                {!isExpanded ? (
-                  <div style={{ animation: "calFadeIn 0.18s ease both" }} className="flex flex-col items-center">
-                    <span
-                      className="text-[10px] font-black text-center leading-tight"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {stats.totalMg}&thinsp;mg
-                    </span>
-                    <span
-                      className="text-[8px] font-semibold text-center leading-tight mt-0.5"
-                      style={{ color: "var(--text-secondary)", opacity: 0.6 }}
-                    >
-                      ~{stats.avgCount}&thinsp;пр.
-                    </span>
-                  </div>
-                ) : (
-                  <div style={{ animation: "calFadeIn 0.18s ease both" }} className="flex flex-col items-center">
-                    <span
-                      className="text-[9px] font-black text-center leading-tight"
-                      style={{ color: "var(--accent-ah)" }}
-                    >
-                      AH&thinsp;{stats.ahMg}&thinsp;mg
-                    </span>
-                    <span
-                      className="text-[8px] font-semibold text-center"
-                      style={{ color: "var(--accent-ah)", opacity: 0.65 }}
-                    >
-                      {stats.ahCount}&thinsp;пр.
-                    </span>
-                    <span
-                      className="text-[9px] font-black text-center leading-tight mt-1"
-                      style={{ color: "var(--accent-ei)" }}
-                    >
-                      EI&thinsp;{stats.eiMg}&thinsp;mg
-                    </span>
-                    <span
-                      className="text-[8px] font-semibold text-center"
-                      style={{ color: "var(--accent-ei)", opacity: 0.65 }}
-                    >
-                      {stats.eiCount}&thinsp;пр.
-                    </span>
-                  </div>
-                )}
-              </div>
             </div>
           );
         })}
