@@ -5,43 +5,69 @@ import { formatTime, formatViewedDate, getStartOfDay } from "../utils/time";
 
 // Minimum pixel gap between two intake bubbles before clustering kicks in
 const CLUSTER_THRESHOLD_PX = 38;
-// Approximate rendered height of one panel card (px) — used for stacking
-const PANEL_H = 36;
+// Panel card height + gap between stacked panels
+const PANEL_H = 48;
 // Connector line is drawn when panel is displaced more than this (px) from its dot
 const CONNECTOR_THRESHOLD_PX = 4;
 
 /**
- * Given an array of { dotY, id, ... } sorted by dotY ascending,
- * returns an array of { ...item, panelY } where panelY values are
- * spaced at least PANEL_H apart, with the stack centred on the
- * centroid of the original dotY positions.
+ * Layout solver: dots stay at their exact timestamp pixel positions.
+ * Panels are distributed so they never overlap (min PANEL_H apart).
+ *
+ * Anchoring rule: the MIDDLE item's panel stays as close as possible to its
+ * dot. Items above the middle are pushed upward from there, items below
+ * are pushed downward — so the group "fans out" from the middle entry.
+ *
+ * After the initial fan-out we do a few relaxation passes to handle cases
+ * where the dots themselves are spread wider than PANEL_H.
  */
 function solveLayout(items) {
   if (items.length === 0) return [];
   if (items.length === 1) return [{ ...items[0], panelY: items[0].dotY }];
 
   const n = items.length;
-  const centroid = items.reduce((s, it) => s + it.dotY, 0) / n;
+  // items are sorted by dotY ascending (top of screen first)
 
-  // Initial placement: stack panels centred on centroid
-  const half = ((n - 1) * PANEL_H) / 2;
-  const panels = items.map((it, idx) => centroid - half + idx * PANEL_H);
+  // Place panels starting from the middle item anchored to its dot
+  const mid = Math.floor(n / 2);
+  const panels = new Array(n);
+  panels[mid] = items[mid].dotY;
 
-  // Iterative relaxation: push overlapping panels apart, then pull toward dots
-  for (let pass = 0; pass < 40; pass++) {
-    // Push apart (top to bottom)
+  // Fan upward from mid (each panel is PANEL_H above the next)
+  for (let i = mid - 1; i >= 0; i--) {
+    panels[i] = Math.min(panels[i + 1] - PANEL_H, items[i].dotY);
+  }
+  // Fan downward from mid
+  for (let i = mid + 1; i < n; i++) {
+    panels[i] = Math.max(panels[i - 1] + PANEL_H, items[i].dotY);
+  }
+
+  // Relaxation: push overlapping panels apart while respecting dot ordering
+  for (let pass = 0; pass < 20; pass++) {
+    // Push apart top→bottom
     for (let i = 1; i < n; i++) {
-      const overlap = panels[i - 1] + PANEL_H - panels[i];
-      if (overlap > 0) panels[i] += overlap;
+      if (panels[i] < panels[i - 1] + PANEL_H) {
+        panels[i] = panels[i - 1] + PANEL_H;
+      }
     }
-    // Push apart (bottom to top)
+    // Push apart bottom→top
     for (let i = n - 2; i >= 0; i--) {
-      const overlap = panels[i] + PANEL_H - panels[i + 1];
-      if (overlap > 0) panels[i] -= overlap;
+      if (panels[i] > panels[i + 1] - PANEL_H) {
+        panels[i] = panels[i + 1] - PANEL_H;
+      }
     }
-    // Gentle pull toward own dot
+    // Gentle pull: each panel nudges toward its own dot (only if it won't create overlap)
     for (let i = 0; i < n; i++) {
-      panels[i] += (items[i].dotY - panels[i]) * 0.08;
+      const target = items[i].dotY;
+      const nudge = (target - panels[i]) * 0.12;
+      panels[i] += nudge;
+    }
+    // Re-enforce spacing after nudge
+    for (let i = 1; i < n; i++) {
+      if (panels[i] < panels[i - 1] + PANEL_H) panels[i] = panels[i - 1] + PANEL_H;
+    }
+    for (let i = n - 2; i >= 0; i--) {
+      if (panels[i] > panels[i + 1] - PANEL_H) panels[i] = panels[i + 1] - PANEL_H;
     }
   }
 
@@ -801,32 +827,76 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
 
                     // Connector line from dot to panel (only when displaced)
                     const displaced = Math.abs(panelY - dotY) > CONNECTOR_THRESHOLD_PX;
-                    // Line goes from the dot (on the vertical timeline line) to the edge of the panel
-                    // For AH: dot is to the right of center (right-1/2), panel extends left
-                    //   connector from dot X (≈ center-10px) to panel right edge (≈ center-mr)
-                    // For EI: dot is to the left of center (left-1/2), panel extends right
+
+                    // Mind-map connector geometry:
+                    // AH side: dot is on the left vertical line (center - 10px).
+                    //   Panel is to the LEFT of the dot. Connector goes:
+                    //   dot → short horizontal arm LEFT → vertical run → short horizontal arm to panel edge
+                    // EI side: dot is on the right vertical line (center + 10px).
+                    //   Panel is to the RIGHT. Mirror of AH.
+                    //
+                    // We render this as a single SVG path using calc()-free positioning:
+                    // The SVG is absolutely positioned and fills the day block.
+                    // dotX for AH  ≈ 50% - 10px  →  we use CSS variable workaround via inline style width trick.
+                    // Since we can't use calc() in SVG attributes we render the SVG in a way where
+                    // the coordinate origin is placed at the center of the day block.
 
                     const lineColor = subtype ? subtypeColor : "var(--text-secondary)";
+                    // Horizontal arm length (px from the vertical timeline line to where the bend is)
+                    const ARM_H = 14;
 
                     return (
                       <div key={intake.id} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
-                        {/* Connector line — rendered as a positioned div (vertical line) */}
+                        {/* Mind-map connector: dot → arm → vertical run → arm → panel */}
                         {displaced && !isNO && (
                           <div
                             style={{
                               position: "absolute",
-                              // AH line sits on left vertical line: calc(50% - 10px), centered in the 2px line
-                              // EI line sits on right vertical line: calc(50% + 10px)
-                              left: isAH ? "calc(50% - 11px)" : "calc(50% + 9px)",
-                              top: `${Math.min(dotY, panelY)}px`,
-                              width: "2px",
-                              height: `${Math.abs(panelY - dotY)}px`,
-                              background: `repeating-linear-gradient(to bottom, ${lineColor} 0px, ${lineColor} 4px, transparent 4px, transparent 7px)`,
-                              opacity: 0.55,
-                              zIndex: 8,
+                              // Container anchored to the center of the day block
+                              // We use left:50% and then offset with negative margin
+                              left: "50%",
+                              top: 0,
+                              width: 0,
+                              height: 0,
+                              overflow: "visible",
                               pointerEvents: "none",
+                              zIndex: 8,
                             }}
-                          />
+                          >
+                            <svg
+                              style={{ overflow: "visible", position: "absolute", top: 0, left: 0 }}
+                              width="0"
+                              height="0"
+                            >
+                              {isAH ? (
+                                // AH: dot at x = -10, panel to the LEFT
+                                // Path: dot(x=-10, y=dotY) → left arm → (x=-10-ARM_H, dotY) →
+                                //        vertical → (x=-10-ARM_H, panelY) → right arm → (x=-10, panelY)
+                                <path
+                                  d={`M ${-10} ${dotY} L ${-10 - ARM_H} ${dotY} L ${-10 - ARM_H} ${panelY} L ${-10} ${panelY}`}
+                                  fill="none"
+                                  stroke={lineColor}
+                                  strokeWidth="1.5"
+                                  strokeDasharray="4 3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  opacity="0.6"
+                                />
+                              ) : (
+                                // EI: dot at x = +10, panel to the RIGHT
+                                <path
+                                  d={`M ${10} ${dotY} L ${10 + ARM_H} ${dotY} L ${10 + ARM_H} ${panelY} L ${10} ${panelY}`}
+                                  fill="none"
+                                  stroke={lineColor}
+                                  strokeWidth="1.5"
+                                  strokeDasharray="4 3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  opacity="0.6"
+                                />
+                              )}
+                            </svg>
+                          </div>
                         )}
 
                         {/* Dot — always at dotY on the timeline line */}
