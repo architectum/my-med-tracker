@@ -5,6 +5,48 @@ import { formatTime, formatViewedDate, getStartOfDay } from "../utils/time";
 
 // Minimum pixel gap between two intake bubbles before clustering kicks in
 const CLUSTER_THRESHOLD_PX = 38;
+// Approximate rendered height of one panel card (px) — used for stacking
+const PANEL_H = 36;
+// Connector line is drawn when panel is displaced more than this (px) from its dot
+const CONNECTOR_THRESHOLD_PX = 4;
+
+/**
+ * Given an array of { dotY, id, ... } sorted by dotY ascending,
+ * returns an array of { ...item, panelY } where panelY values are
+ * spaced at least PANEL_H apart, with the stack centred on the
+ * centroid of the original dotY positions.
+ */
+function solveLayout(items) {
+  if (items.length === 0) return [];
+  if (items.length === 1) return [{ ...items[0], panelY: items[0].dotY }];
+
+  const n = items.length;
+  const centroid = items.reduce((s, it) => s + it.dotY, 0) / n;
+
+  // Initial placement: stack panels centred on centroid
+  const half = ((n - 1) * PANEL_H) / 2;
+  const panels = items.map((it, idx) => centroid - half + idx * PANEL_H);
+
+  // Iterative relaxation: push overlapping panels apart, then pull toward dots
+  for (let pass = 0; pass < 40; pass++) {
+    // Push apart (top to bottom)
+    for (let i = 1; i < n; i++) {
+      const overlap = panels[i - 1] + PANEL_H - panels[i];
+      if (overlap > 0) panels[i] += overlap;
+    }
+    // Push apart (bottom to top)
+    for (let i = n - 2; i >= 0; i--) {
+      const overlap = panels[i] + PANEL_H - panels[i + 1];
+      if (overlap > 0) panels[i] -= overlap;
+    }
+    // Gentle pull toward own dot
+    for (let i = 0; i < n; i++) {
+      panels[i] += (items[i].dotY - panels[i]) * 0.08;
+    }
+  }
+
+  return items.map((it, idx) => ({ ...it, panelY: panels[idx] }));
+}
 
 const SUBTYPE_COLORS = {
   IV: "var(--subtype-iv)",
@@ -732,15 +774,13 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
               {/* Intakes */}
               <div className="absolute inset-0 z-20">
                 {(() => {
-                  // Separate LOST/NO intakes — never clustered, always rendered as-is
-                  const noIntakes = day.intakes.filter(
-                    (i) => i.patientId === "NO" || i.subtype === "LOST",
-                  );
-                  // Cluster AH and EI separately
-                  const ahItems = computeClusters(day.intakes, "AH");
-                  const eiItems = computeClusters(day.intakes, "EI");
+                  // ── helpers ──────────────────────────────────────────────
 
-                  const renderSingleIntake = (intake, topPx) => {
+                  // Render a single intake card + dot + optional connector line.
+                  // dotY   = exact pixel position of the timeline dot (never moves)
+                  // panelY = pixel position where the panel card is rendered
+                  // Both measured from the top of the day block, used with translateY(-50%)
+                  const renderCard = (intake, dotY, panelY) => {
                     const isNO = intake.patientId === "NO" || intake.subtype === "LOST";
                     const isAH = intake.patientId === "AH";
                     const isSelected = selectedId === intake.id;
@@ -754,147 +794,207 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
 
                     const subtypeColor = SUBTYPE_COLORS[subtype] || "var(--text-secondary)";
                     const subtypeGlow = SUBTYPE_GLOWS[subtype] || "none";
+                    // LOST records: dashed grey border
                     const subtypeBorderColor = isNO
-                      ? "rgba(255,255,255,0.15)"
+                      ? "rgba(160,160,160,0.55)"
                       : SUBTYPE_BORDER_COLORS[subtype] || "rgba(255,255,255,0.55)";
 
+                    // Connector line from dot to panel (only when displaced)
+                    const displaced = Math.abs(panelY - dotY) > CONNECTOR_THRESHOLD_PX;
+                    // Line goes from the dot (on the vertical timeline line) to the edge of the panel
+                    // For AH: dot is to the right of center (right-1/2), panel extends left
+                    //   connector from dot X (≈ center-10px) to panel right edge (≈ center-mr)
+                    // For EI: dot is to the left of center (left-1/2), panel extends right
+
+                    const lineColor = subtype ? subtypeColor : "var(--text-secondary)";
+
                     return (
-                      <div
-                        key={intake.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectIntake(isSelected ? null : intake);
-                        }}
-                        className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
-                          isNO
-                            ? "left-1/2 justify-center"
-                            : !isAH
-                              ? "left-1/2 -ml-[9px] pr-5 justify-end"
-                              : "right-1/2 -mr-[9px] pl-5 justify-start"
-                        } ${selectedId && !isSelected ? "opacity-30" : isNO ? "opacity-40 hover:opacity-70" : "opacity-100"}`}
-                        style={{
-                          top: `${topPx}px`,
-                          transform: isNO ? "translate(-50%, -50%)" : "translateY(-50%)",
-                          width: "10em",
-                          zIndex: isNO ? 5 : 10,
-                        }}
-                      >
-                        {/* Connector dot */}
-                        {!isNO && (
+                      <div key={intake.id} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, pointerEvents: "none" }}>
+                        {/* Connector line — rendered as a positioned div (vertical line) */}
+                        {displaced && !isNO && (
                           <div
-                            className={`absolute w-3 h-3 rounded-full border-2 z-10 ${
-                              !isAH ? "left-[13px]" : "right-[11px]"
-                            }`}
                             style={{
-                              background: subtype ? subtypeColor : "var(--text-secondary)",
-                              borderColor: subtype ? subtypeColor : "var(--text-secondary)",
-                              opacity: 1,
+                              position: "absolute",
+                              // AH line sits on left vertical line: calc(50% - 10px), centered in the 2px line
+                              // EI line sits on right vertical line: calc(50% + 10px)
+                              left: isAH ? "calc(50% - 11px)" : "calc(50% + 9px)",
+                              top: `${Math.min(dotY, panelY)}px`,
+                              width: "2px",
+                              height: `${Math.abs(panelY - dotY)}px`,
+                              background: `repeating-linear-gradient(to bottom, ${lineColor} 0px, ${lineColor} 4px, transparent 4px, transparent 7px)`,
+                              opacity: 0.55,
+                              zIndex: 8,
+                              pointerEvents: "none",
                             }}
                           />
                         )}
 
+                        {/* Dot — always at dotY on the timeline line */}
+                        {!isNO && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: `${dotY}px`,
+                              transform: "translateY(-50%)",
+                              // AH dot: on left line (calc 50%-10px), EI dot: on right line (calc 50%+10px)
+                              left: isAH ? "calc(50% - 10px - 6px)" : "calc(50% + 10px - 6px)",
+                              width: 12,
+                              height: 12,
+                              borderRadius: "50%",
+                              border: "2px solid",
+                              background: subtype ? subtypeColor : "var(--text-secondary)",
+                              borderColor: subtype ? subtypeColor : "var(--text-secondary)",
+                              zIndex: 15,
+                              pointerEvents: "none",
+                            }}
+                          />
+                        )}
+
+                        {/* Panel card — at panelY, interactive */}
                         <div
-                          className="px-3 py-2 rounded-2xl border relative flex flex-col items-center min-w-[70px]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectIntake(isSelected ? null : intake);
+                          }}
+                          className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
+                            isNO
+                              ? "left-1/2 justify-center"
+                              : !isAH
+                                ? "left-1/2 -ml-[9px] pr-5 justify-end"
+                                : "right-1/2 -mr-[9px] pl-5 justify-start"
+                          } ${selectedId && !isSelected ? "opacity-30" : isNO ? "opacity-40 hover:opacity-70" : "opacity-100"}`}
                           style={{
-                            background: bubbleBg,
-                            borderColor: subtypeBorderColor,
-                            borderStyle: isNO ? "dashed" : "solid",
-                            boxShadow: isSelected
-                              ? `0 18px 44px var(--shadow-color-strong), 0 0 20px var(--glow-light)`
-                              : isNO
-                              ? "none"
-                              : "0 5px 22px var(--shadow-color), 0 0 10px var(--glow-dark)",
-                            transform: isSelected ? "scale(1.09)" : "scale(1)",
+                            top: `${panelY}px`,
+                            transform: isNO ? "translate(-50%, -50%)" : "translateY(-50%)",
+                            width: "10em",
+                            zIndex: isNO ? 5 : 12,
+                            pointerEvents: "auto",
                           }}
                         >
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
-                              {intake.dosage}
-                            </span>
-                            <span
-                              className="text-[10px] font-black"
-                              style={{ color: "var(--text-secondary)", opacity: 0.7 }}
-                            >
-                              {intake.unit}
-                            </span>
-                            {intake.unit === "ml" && (
-                              <span
-                                className="text-[9px] font-bold ml-0.5"
-                                style={{ color: "var(--text-secondary)", opacity: 0.5 }}
-                              >
-                                ~{(parseFloat(intake.dosage) * 20).toFixed(0)} mg
+                          <div
+                            className="px-3 py-2 rounded-2xl border relative flex flex-col items-center min-w-[70px]"
+                            style={{
+                              background: bubbleBg,
+                              borderColor: subtypeBorderColor,
+                              // LOST: dashed grey; others: solid
+                              borderStyle: isNO ? "dashed" : "solid",
+                              borderWidth: isNO ? "1.5px" : "1px",
+                              boxShadow: isSelected
+                                ? `0 18px 44px var(--shadow-color-strong), 0 0 20px var(--glow-light)`
+                                : isNO
+                                ? "none"
+                                : "0 5px 22px var(--shadow-color), 0 0 10px var(--glow-dark)",
+                              transform: isSelected ? "scale(1.09)" : "scale(1)",
+                            }}
+                          >
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                                {intake.dosage}
                               </span>
-                            )}
-                            <span
-                              className="text-[10px] font-semibold"
-                              style={{ color: "var(--text-secondary)", opacity: 0.6 }}
-                            >
-                              {formatTime(intake.timestamp)}
-                            </span>
-
-                            {subtype && (
-                              <span
-                                className={`absolute inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black z-0 ${
-                                  isNO
-                                    ? "top-[-8px] left-1/2 -translate-x-1/2"
-                                    : isAH
-                                      ? "left-[-2px] ml-[-17px] top-[-5px]"
-                                      : "right-[-2px] mr-[-10px] top-[-5px]"
-                                }`}
-                                style={{
-                                  backgroundColor: isNO ? "var(--text-secondary)" : subtypeColor,
-                                  color: isNO ? "var(--surface)" : "white",
-                                  opacity: 0.9,
-                                  borderRadius: 100,
-                                  transform: isNO
-                                    ? "none"
-                                    : isAH && (subtype === "IV+PO" || subtype === "VTRK")
-                                    ? "rotate(-45deg)"
-                                    : !isAH && (subtype === "IV+PO" || subtype === "VTRK")
-                                    ? "rotate(45deg)"
-                                    : "rotate(0deg)",
-                                  boxShadow:
-                                    subtypeGlow !== "none" && !isNO
-                                      ? `0 0 10px ${subtypeColor}`
-                                      : "none",
-                                }}
-                              >
-                                {subtype}
+                              <span className="text-[10px] font-black" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
+                                {intake.unit}
                               </span>
-                            )}
+                              {intake.unit === "ml" && (
+                                <span className="text-[9px] font-bold ml-0.5" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
+                                  ~{(parseFloat(intake.dosage) * 20).toFixed(0)} mg
+                                </span>
+                              )}
+                              <span className="text-[10px] font-semibold" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                                {formatTime(intake.timestamp)}
+                              </span>
+                              {subtype && (
+                                <span
+                                  className={`absolute inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-black z-0 ${
+                                    isNO
+                                      ? "top-[-8px] left-1/2 -translate-x-1/2"
+                                      : isAH
+                                        ? "left-[-2px] ml-[-17px] top-[-5px]"
+                                        : "right-[-2px] mr-[-10px] top-[-5px]"
+                                  }`}
+                                  style={{
+                                    backgroundColor: isNO ? "rgba(160,160,160,0.8)" : subtypeColor,
+                                    color: isNO ? "var(--surface)" : "white",
+                                    opacity: 0.9,
+                                    borderRadius: 100,
+                                    transform: isNO
+                                      ? "none"
+                                      : isAH && (subtype === "IV+PO" || subtype === "VTRK")
+                                      ? "rotate(-45deg)"
+                                      : !isAH && (subtype === "IV+PO" || subtype === "VTRK")
+                                      ? "rotate(45deg)"
+                                      : "rotate(0deg)",
+                                    boxShadow: subtypeGlow !== "none" && !isNO ? `0 0 10px ${subtypeColor}` : "none",
+                                  }}
+                                >
+                                  {subtype}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
                     );
                   };
 
-                  const renderClusterNode = (cluster, patientId) => {
+                  // ── Build layout for one patient side ────────────────────
+                  // Returns rendered elements for all items (singles + clusters + expanded)
+                  const renderPatientSide = (items, patientId) => {
                     const isAH = patientId === "AH";
-                    const clusterKey = cluster.intakes.map((i) => i.id).join("_");
-                    const isExpanded = expandedClusters.has(clusterKey);
-                    const accentColor = isAH ? "var(--accent-ah)" : "var(--accent-ei)";
-                    const bubbleBg = isAH
-                      ? "color-mix(in srgb, var(--accent-ah) 12%, transparent)"
-                      : "color-mix(in srgb, var(--accent-ei) 12%, transparent)";
-                    const totalMgRounded = Math.round(cluster.totalMg * 10) / 10;
 
-                    const toggleExpand = (e) => {
-                      e.stopPropagation();
-                      setExpandedClusters((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(clusterKey)) {
-                          next.delete(clusterKey);
+                    // Collect all visible layout units for this patient:
+                    // Each unit: { dotY, intake, fromCluster }
+                    // For collapsed clusters: render cluster node (handled separately below)
+                    // For expanded clusters + singles: go into layout solver
+
+                    const layoutUnits = []; // { dotY, intake }
+                    const clusterNodes = []; // collapsed cluster nodes to render as-is
+
+                    items.forEach((item) => {
+                      if (item.type === "single") {
+                        layoutUnits.push({ dotY: item.topPx, intake: item.intake });
+                      } else {
+                        // cluster
+                        const clusterKey = item.intakes.map((i) => i.id).join("_");
+                        const isExpanded = expandedClusters.has(clusterKey);
+                        if (isExpanded) {
+                          // Each intake in the expanded cluster becomes a layout unit
+                          item.intakes.forEach((intake) => {
+                            layoutUnits.push({ dotY: getTimeTop(intake.timestamp), intake });
+                          });
                         } else {
-                          next.add(clusterKey);
+                          clusterNodes.push(item);
                         }
-                        return next;
-                      });
-                    };
+                      }
+                    });
 
-                    return (
-                      <div key={`cluster-${clusterKey}`}>
-                        {/* Cluster bubble */}
+                    // Sort layout units by dotY ascending (top of screen first)
+                    layoutUnits.sort((a, b) => a.dotY - b.dotY);
+
+                    // Solve panel positions
+                    const solved = solveLayout(layoutUnits);
+
+                    // Render collapsed cluster nodes (they have their own fixed position)
+                    const clusterEls = clusterNodes.map((cluster) => {
+                      const clusterKey = cluster.intakes.map((i) => i.id).join("_");
+                      const accentColor = isAH ? "var(--accent-ah)" : "var(--accent-ei)";
+                      const bubbleBg = isAH
+                        ? "color-mix(in srgb, var(--accent-ah) 12%, transparent)"
+                        : "color-mix(in srgb, var(--accent-ei) 12%, transparent)";
+                      const totalMgRounded = Math.round(cluster.totalMg * 10) / 10;
+
+                      const toggleExpand = (e) => {
+                        e.stopPropagation();
+                        setExpandedClusters((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(clusterKey)) next.delete(clusterKey);
+                          else next.add(clusterKey);
+                          return next;
+                        });
+                      };
+
+                      return (
                         <div
+                          key={`cluster-${clusterKey}`}
                           onClick={toggleExpand}
                           className={`absolute flex items-center transition-all duration-200 cursor-pointer ${
                             !isAH
@@ -905,25 +1005,21 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
                             top: `${cluster.topPx}px`,
                             transform: "translateY(-50%)",
                             width: "10em",
-                            zIndex: 10,
+                            zIndex: 12,
                           }}
                         >
-                          {/* Cluster connector dot — double ring */}
+                          {/* Cluster dot — double ring with count */}
                           <div
                             className={`absolute w-5 h-5 rounded-full z-10 flex items-center justify-center ${
                               !isAH ? "left-[9px]" : "right-[7px]"
                             }`}
                             style={{
-                              // outer ring
                               background: "var(--surface)",
                               border: `3px solid ${accentColor}`,
                               boxShadow: `0 0 0 2px var(--surface), 0 0 0 4px ${accentColor}`,
                             }}
                           >
-                            <span
-                              className="text-[9px] font-black leading-none"
-                              style={{ color: accentColor }}
-                            >
+                            <span className="text-[9px] font-black leading-none" style={{ color: accentColor }}>
                               {cluster.intakes.length}
                             </span>
                           </div>
@@ -943,51 +1039,41 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
                               <span className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
                                 {totalMgRounded}
                               </span>
-                              <span
-                                className="text-[10px] font-black"
-                                style={{ color: "var(--text-secondary)", opacity: 0.7 }}
-                              >
+                              <span className="text-[10px] font-black" style={{ color: "var(--text-secondary)", opacity: 0.7 }}>
                                 mg
                               </span>
-                              <span
-                                className="text-[10px] font-semibold"
-                                style={{ color: "var(--text-secondary)", opacity: 0.6 }}
-                              >
+                              <span className="text-[10px] font-semibold" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
                                 {formatTime(cluster.lastTime)}
                               </span>
                             </div>
                           </div>
                         </div>
+                      );
+                    });
 
-                        {/* Expanded individual intakes */}
-                        {isExpanded &&
-                          cluster.intakes.map((intake) =>
-                            renderSingleIntake(intake, getTimeTop(intake.timestamp)),
-                          )}
-                      </div>
+                    // Render solved layout units (singles + expanded cluster items)
+                    const cardEls = solved.map(({ intake, dotY, panelY }) =>
+                      renderCard(intake, dotY, panelY),
                     );
+
+                    return [...clusterEls, ...cardEls];
                   };
+
+                  // ── LOST / NO intakes — rendered individually, centred ──
+                  const noIntakes = day.intakes.filter(
+                    (i) => i.patientId === "NO" || i.subtype === "LOST",
+                  );
+
+                  const ahItems = computeClusters(day.intakes, "AH");
+                  const eiItems = computeClusters(day.intakes, "EI");
 
                   return (
                     <>
-                      {/* NO/LOST intakes — always render individually, never clustered */}
                       {noIntakes.map((intake) =>
-                        renderSingleIntake(intake, getTimeTop(intake.timestamp)),
+                        renderCard(intake, getTimeTop(intake.timestamp), getTimeTop(intake.timestamp)),
                       )}
-
-                      {/* AH clustered items */}
-                      {ahItems.map((item) =>
-                        item.type === "single"
-                          ? renderSingleIntake(item.intake, item.topPx)
-                          : renderClusterNode(item, "AH"),
-                      )}
-
-                      {/* EI clustered items */}
-                      {eiItems.map((item) =>
-                        item.type === "single"
-                          ? renderSingleIntake(item.intake, item.topPx)
-                          : renderClusterNode(item, "EI"),
-                      )}
+                      {renderPatientSide(ahItems, "AH")}
+                      {renderPatientSide(eiItems, "EI")}
                     </>
                   );
                 })()}
