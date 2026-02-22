@@ -224,26 +224,30 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
 
   return (
     <div className="flex flex-col h-full">
-      {/* Zoom Controls */}
+      {/* Zoom Controls — glass bar */}
       <div
-        className="flex items-center justify-center gap-2 py-2 px-4 border-b border-surface-2/50 relative z-30"
-        style={{ borderColor: "var(--add-btn-border)", background: "var(--surface)" }}
+        className="flex items-center justify-center gap-2 py-2 px-4 relative z-30"
+        style={{
+          borderBottom: "1px solid var(--glass-border)",
+          background: "rgba(255,255,255,0.03)",
+          backdropFilter: "blur(12px)",
+        }}
       >
         <button
           onClick={zoomOut}
           disabled={zoomLevel <= 0.5}
-          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 disabled:opacity-30 enabled:hover:bg-surface-2/50"
-          style={{ color: "var(--text-primary)" }}
+          className="w-8 h-8 rounded-lg text-sm font-bold transition-all duration-200 disabled:opacity-25 enabled:hover:bg-white/10 enabled:active:scale-95 flex items-center justify-center"
+          style={{ color: "var(--text-primary)", border: "1px solid var(--glass-border)" }}
         >
           −
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <svg
-            className="w-4 h-4"
+            className="w-3.5 h-3.5"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
-            style={{ color: "var(--text-secondary)" }}
+            style={{ color: "var(--text-secondary)", opacity: 0.7 }}
           >
             <path
               strokeLinecap="round"
@@ -255,12 +259,13 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
           <select
             value={zoomLevel}
             onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-2/50 border border-surface-3/50 outline-none cursor-pointer transition-all duration-200 hover:border-surface-3"
+            className="px-2 py-1.5 rounded-lg text-xs font-bold outline-none cursor-pointer transition-all duration-200"
             style={{
               color: "var(--add-btn-text)",
               background: "var(--add-btn-bg)",
               borderColor: "var(--add-btn-border)",
-              minWidth: "70px",
+              border: "1px solid var(--add-btn-border)",
+              minWidth: "64px",
             }}
           >
             {ZOOM_LEVELS.map((level) => (
@@ -273,14 +278,18 @@ const TimelineHistory = ({ onDayChange, selectedId, onSelectIntake, scrollToNext
         <button
           onClick={zoomIn}
           disabled={zoomLevel >= 5}
-          className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 disabled:opacity-30 enabled:hover:bg-surface-2/50"
-          style={{ color: "var(--text-primary)" }}
+          className="w-8 h-8 rounded-lg text-sm font-bold transition-all duration-200 disabled:opacity-25 enabled:hover:bg-white/10 enabled:active:scale-95 flex items-center justify-center"
+          style={{ color: "var(--text-primary)", border: "1px solid var(--glass-border)" }}
         >
           +
         </button>
         <span
-          className="text-xs font-medium ml-2"
-          style={{ color: "var(--text-secondary)", opacity: 0.7 }}
+          className="text-[10px] font-bold ml-1 px-2 py-0.5 rounded-lg"
+          style={{
+            color: "var(--text-secondary)",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid var(--glass-border)",
+          }}
         >
           {Math.round(zoomLevel * 100)}%
         </span>

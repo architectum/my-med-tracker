@@ -260,14 +260,14 @@ export default function App() {
         className="absolute inset-0 pointer-events-none z-[-2]"
         style={{
           background: `
-            radial-gradient(circle at top right, var(--accent-ei) 0%, transparent 40%),
-            radial-gradient(circle at bottom left, var(--accent-ah) 0%, transparent 40%)
+            radial-gradient(ellipse 80% 60% at top right, var(--accent-ei) 0%, transparent 55%),
+            radial-gradient(ellipse 80% 60% at bottom left, var(--accent-ah) 0%, transparent 55%)
           `,
-          opacity: currentTheme?.isDark ? 0.15 : 0.08,
+          opacity: currentTheme?.isDark ? 0.18 : 0.1,
           mixBlendMode: currentTheme?.isDark ? 'screen' : 'normal'
         }}
       />
-      {/* Background noise grid */}
+      {/* Background subtle grid */}
       <div 
         className="absolute inset-0 pointer-events-none z-[-1]"
         style={{
@@ -275,8 +275,8 @@ export default function App() {
             linear-gradient(var(--text-primary) 1px, transparent 1px),
             linear-gradient(90deg, var(--text-primary) 1px, transparent 1px)
           `,
-          backgroundSize: '30px 30px',
-          opacity: currentTheme?.isDark ? 0.03 : 0.04,
+          backgroundSize: '40px 40px',
+          opacity: currentTheme?.isDark ? 0.025 : 0.035,
           mixBlendMode: currentTheme?.isDark ? 'screen' : 'multiply'
         }}
       />
@@ -292,148 +292,173 @@ export default function App() {
         />
       )}
 
-      {/* Header */}
-      <header className="p-3 flex justify-between items-center flex-shrink-0">
-        <button
-          type="button"
-          onClick={() =>
-            navigateTo(
-              activeView === VIEW.STATISTICS ? VIEW.MAIN : VIEW.STATISTICS,
-            )
-          }
-          className="w-10 h-10 rounded-full border border-[var(--border)] text-[var(--text-primary)] shadow-md hover:scale-105 transition-transform flex items-center justify-center"
+      {/* Header — floating glassmorphic bar */}
+      <header
+        className="sticky top-0 z-50 flex-shrink-0 px-4 py-2.5"
+        style={{
+          background: "rgba(0,0,0,0.0)",
+        }}
+      >
+        <div
+          className="flex items-center justify-between rounded-2xl px-3 py-2 relative overflow-hidden"
           style={{
-            background:
-              "linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))",
-            boxShadow:
-              activeView === VIEW.STATISTICS
-                ? "0 0 0 2px var(--accent-primary)"
-                : undefined,
+            background: currentTheme?.isDark
+              ? "rgba(8,12,28,0.55)"
+              : "rgba(255,255,255,0.55)",
+            backdropFilter: "blur(28px)",
+            WebkitBackdropFilter: "blur(28px)",
+            border: "1px solid var(--glass-border)",
+            boxShadow: "0 4px 24px var(--shadow-color), inset 0 1px 0 var(--glass-shine)",
           }}
-          aria-label={
-            activeView === VIEW.STATISTICS ? "Show main view" : "Show statistics"
-          }
         >
-          {activeView === VIEW.STATISTICS ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <path d="M19 12H5" />
-              <path d="M12 19l-7-7 7-7" />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <path d="M3 3v18h18" />
-              <path d="M18 9l-5 5-4-4-3 3" />
-            </svg>
-          )}
-        </button>
+          {/* Subtle top shine line */}
+          <div
+            className="absolute inset-x-0 top-0 h-px pointer-events-none"
+            style={{ background: "linear-gradient(90deg, transparent, var(--glass-shine), transparent)" }}
+          />
 
-        {/* Center: App title (visible on main view) */}
-        <div className="flex items-center gap-2">
-          {activeView === VIEW.MAIN && (
+          {/* Left nav button — Stats */}
+          <button
+            type="button"
+            onClick={() =>
+              navigateTo(
+                activeView === VIEW.STATISTICS ? VIEW.MAIN : VIEW.STATISTICS,
+              )
+            }
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 relative"
+            style={{
+              background: activeView === VIEW.STATISTICS
+                ? "var(--accent-primary)"
+                : "var(--glass-bg)",
+              border: "1px solid",
+              borderColor: activeView === VIEW.STATISTICS
+                ? "transparent"
+                : "var(--glass-border)",
+              color: activeView === VIEW.STATISTICS
+                ? (currentTheme?.isDark ? "#000" : "#fff")
+                : "var(--text-primary)",
+              boxShadow: activeView === VIEW.STATISTICS
+                ? "0 4px 16px var(--accent-primary)"
+                : "none",
+            }}
+            aria-label={
+              activeView === VIEW.STATISTICS ? "Show main view" : "Show statistics"
+            }
+          >
+            {activeView === VIEW.STATISTICS ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M3 3v18h18" /><path d="M18 9l-5 5-4-4-3 3" />
+              </svg>
+            )}
+          </button>
+
+          {/* Center: page title */}
+          <div className="flex flex-col items-center select-none">
             <span
-              className="text-xs font-black uppercase tracking-widest opacity-50"
-              style={{ color: "var(--text-primary)" }}
+              className="text-[10px] font-black uppercase tracking-[0.22em] leading-none"
+              style={{ color: "var(--text-primary)", opacity: 0.9 }}
             >
-              Med Tracker
+              {activeView === VIEW.MAIN
+                ? "Med Tracker"
+                : activeView === VIEW.STATISTICS
+                ? "Statistics"
+                : "Theme"}
             </span>
-          )}
-          {activeView === VIEW.STATISTICS && (
-            <span
-              className="text-xs font-black uppercase tracking-widest opacity-70"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Statistics
-            </span>
-          )}
-          {activeView === VIEW.THEME_SELECTOR && (
-            <span
-              className="text-xs font-black uppercase tracking-widest opacity-70"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Theme
-            </span>
-          )}
+            {/* Accent dot row */}
+            <div className="flex gap-1 mt-1">
+              <div
+                className="w-1 h-1 rounded-full transition-all duration-300"
+                style={{
+                  background: "var(--accent-ah)",
+                  opacity: activeView === VIEW.MAIN ? 1 : 0.25,
+                  transform: activeView === VIEW.MAIN ? "scale(1.2)" : "scale(1)",
+                  boxShadow: activeView === VIEW.MAIN ? "0 0 6px var(--accent-ah)" : "none",
+                }}
+              />
+              <div
+                className="w-1 h-1 rounded-full transition-all duration-300"
+                style={{
+                  background: "var(--accent-primary)",
+                  opacity: activeView === VIEW.STATISTICS ? 1 : 0.25,
+                  transform: activeView === VIEW.STATISTICS ? "scale(1.2)" : "scale(1)",
+                  boxShadow: activeView === VIEW.STATISTICS ? "0 0 6px var(--accent-primary)" : "none",
+                }}
+              />
+              <div
+                className="w-1 h-1 rounded-full transition-all duration-300"
+                style={{
+                  background: "var(--accent-ei)",
+                  opacity: activeView === VIEW.THEME_SELECTOR ? 1 : 0.25,
+                  transform: activeView === VIEW.THEME_SELECTOR ? "scale(1.2)" : "scale(1)",
+                  boxShadow: activeView === VIEW.THEME_SELECTOR ? "0 0 6px var(--accent-ei)" : "none",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Right nav button — Theme */}
+          <button
+            type="button"
+            onClick={() =>
+              navigateTo(
+                activeView === VIEW.THEME_SELECTOR
+                  ? VIEW.MAIN
+                  : VIEW.THEME_SELECTOR,
+              )
+            }
+            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+            style={{
+              background: activeView === VIEW.THEME_SELECTOR
+                ? "var(--accent-ei)"
+                : "var(--glass-bg)",
+              border: "1px solid",
+              borderColor: activeView === VIEW.THEME_SELECTOR
+                ? "transparent"
+                : "var(--glass-border)",
+              color: activeView === VIEW.THEME_SELECTOR
+                ? "#fff"
+                : "var(--text-primary)",
+              boxShadow: activeView === VIEW.THEME_SELECTOR
+                ? "0 4px 16px var(--accent-ei)"
+                : "none",
+            }}
+            aria-label={
+              activeView === VIEW.THEME_SELECTOR ? "Close theme" : "Open theme settings"
+            }
+          >
+            {activeView === VIEW.THEME_SELECTOR ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" />
+                <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" />
+                <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" />
+                <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor" />
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+              </svg>
+            )}
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            navigateTo(
-              activeView === VIEW.THEME_SELECTOR
-                ? VIEW.MAIN
-                : VIEW.THEME_SELECTOR,
-            )
-          }
-          className="w-10 h-10 rounded-full border border-[var(--border)] text-[var(--text-primary)] shadow-md hover:scale-105 transition-transform flex items-center justify-center"
-          style={{
-            background:
-              "linear-gradient(135deg, var(--card-bg-start), var(--card-bg-end))",
-            boxShadow:
-              activeView === VIEW.THEME_SELECTOR
-                ? "0 0 0 2px var(--accent-primary)"
-                : undefined,
-          }}
-          aria-label={
-            activeView === VIEW.THEME_SELECTOR ? "Close theme" : "Open theme settings"
-          }
-        >
-          {activeView === VIEW.THEME_SELECTOR ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <path d="M19 12H5" />
-              <path d="M12 19l-7-7 7-7" />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-5 h-5"
-            >
-              <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" />
-              <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" />
-              <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" />
-              <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor" />
-              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
-            </svg>
-          )}
-        </button>
       </header>
 
       {/* Page transition loading overlay */}
       {isTransitioning && (
         <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center">
-          <div className="flex gap-2">
+          <div
+            className="flex gap-2 px-5 py-3 rounded-2xl"
+            style={{
+              background: "rgba(0,0,0,0.35)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: "1px solid var(--glass-border)",
+            }}
+          >
             <div className="pulse-dot" />
             <div className="pulse-dot" />
             <div className="pulse-dot" />
@@ -450,12 +475,23 @@ export default function App() {
             <IntakePanel onAddSuccess={setNotification} />
 
             <div
-              className="rounded-[2.5rem] pt-4 shadow-soft-strong border border-[var(--border)] flex flex-col overflow-hidden"
+              className="rounded-[2rem] pt-4 flex flex-col overflow-hidden relative"
               style={{
-                background: "var(--surface)",
+                background: currentTheme?.isDark
+                  ? "rgba(8,12,28,0.52)"
+                  : "rgba(255,255,255,0.52)",
+                backdropFilter: "blur(32px)",
+                WebkitBackdropFilter: "blur(32px)",
+                border: "1px solid var(--glass-border)",
+                boxShadow: "0 20px 60px var(--shadow-color-strong), inset 0 1px 0 var(--glass-shine)",
                 height: "600px",
               }}
             >
+              {/* Top glass shine edge */}
+              <div
+                className="absolute inset-x-0 top-0 h-px pointer-events-none z-10"
+                style={{ background: "linear-gradient(90deg, transparent 5%, var(--glass-shine) 50%, transparent 95%)" }}
+              />
               {/* Timeline header row: left arrow | heading | right arrow */}
               <div className="flex items-center justify-between px-4 pb-2 flex-shrink-0">
                 {/* Left arrow */}

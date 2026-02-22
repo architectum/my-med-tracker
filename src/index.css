@@ -51,17 +51,23 @@
     --header-gradient-ah-end: #38bdf8;
     --header-gradient-ei-start: #0ea5e9;
     --header-gradient-ei-end: #0ea5e9;
+
+    /* Glass / blur surfaces */
+    --glass-bg: rgba(15, 23, 42, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shine: rgba(255, 255, 255, 0.06);
+    --glass-blur: 20px;
+    --glass-blur-heavy: 40px;
 }
 
 body {
     margin: 0;
     padding: 0;
-    overflow-y: auto; /* Allow page scroll */
+    overflow-y: auto;
     overflow-x: hidden;
     min-height: 100vh;
     width: 100vw;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    font-family: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
         sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -72,8 +78,9 @@ body {
     width: 100%;
 }
 
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
@@ -82,158 +89,115 @@ body {
     background: var(--marker-color);
     border-radius: 10px;
 }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+}
 
-/* Utility-ish helpers (kept minimal; Tailwind still drives most styling) */
+/* ── Shadow helpers ─────────────────────────────────────────────────────────── */
 .shadow-soft {
     box-shadow: 0 12px 30px var(--shadow-color);
 }
-
 .shadow-soft-strong {
     box-shadow: 0 18px 44px var(--shadow-color-strong);
 }
 
-/* Animations */
+/* ── Glassmorphism helpers ──────────────────────────────────────────────────── */
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+}
+
+.glass-heavy {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur-heavy));
+    -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+    border: 1px solid var(--glass-border);
+}
+
+.glass-shine::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, var(--glass-shine) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ── Glow pulse ring ────────────────────────────────────────────────────────── */
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.08); }
+}
+.glow-pulse {
+    animation: glowPulse 2.4s ease-in-out infinite;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
 @keyframes slideIn {
-    from {
-        transform: translateY(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
 }
+.notification-enter { animation: slideIn 0.3s ease-out forwards; }
+.notification-exit  { animation: slideIn 0.3s ease-in reverse forwards; }
 
-.notification-enter {
-    animation: slideIn 0.3s ease-out forwards;
-}
-
-.notification-exit {
-    animation: slideIn 0.3s ease-in reverse forwards;
-}
-
-/* Tailwind-animate style animations polyfill */
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes slideInBottom {
-    from {
-        transform: translateY(var(--slide-y, 20px));
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+    from { transform: translateY(var(--slide-y, 20px)); opacity: 0; }
+    to   { transform: translateY(0);                   opacity: 1; }
 }
 @keyframes zoomIn {
-    from {
-        transform: scale(0.95);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1);
-        opacity: 1;
-    }
+    from { transform: scale(0.93); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes shimmer {
+    0%   { transform: translateX(-100%) skewX(-12deg); }
+    100% { transform: translateX(200%)  skewX(-12deg); }
 }
 
 .animate-in {
     animation-duration: 0.5s;
     animation-fill-mode: forwards;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    opacity: 0; /* Start hidden */
+    opacity: 0;
 }
+.fade-in              { animation-name: fadeIn; }
+.slide-in-from-bottom-4 { --slide-y: 1rem; animation-name: slideInBottom; }
+.slide-in-from-bottom-8 { --slide-y: 2rem; animation-name: slideInBottom; }
+.zoom-in              { animation-name: zoomIn; }
 
-.fade-in {
-    animation-name: fadeIn;
-}
-.slide-in-from-bottom-4 {
-    --slide-y: 1rem;
-    animation-name: slideInBottom;
-}
-.slide-in-from-bottom-8 {
-    --slide-y: 2rem;
-    animation-name: slideInBottom;
-}
-.zoom-in {
-    animation-name: zoomIn;
-}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-700 { animation-delay: 700ms; }
 
-.delay-100 {
-    animation-delay: 100ms;
-}
-.delay-200 {
-    animation-delay: 200ms;
-}
-.delay-300 {
-    animation-delay: 300ms;
-}
-.delay-400 {
-    animation-delay: 400ms;
-}
-.delay-500 {
-    animation-delay: 500ms;
-}
-.delay-700 {
-    animation-delay: 700ms;
-}
-
-/* Page transition animations */
+/* ── Page transitions ───────────────────────────────────────────────────────── */
 @keyframes pageSlideInRight {
-    from {
-        transform: translateX(32px);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+    from { transform: translateX(40px); opacity: 0; filter: blur(4px); }
+    to   { transform: translateX(0);    opacity: 1; filter: blur(0); }
 }
-
 @keyframes pageSlideInLeft {
-    from {
-        transform: translateX(-32px);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+    from { transform: translateX(-40px); opacity: 0; filter: blur(4px); }
+    to   { transform: translateX(0);     opacity: 1; filter: blur(0); }
 }
-
 @keyframes pageSlideInUp {
-    from {
-        transform: translateY(24px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+    from { transform: translateY(28px); opacity: 0; filter: blur(4px); }
+    to   { transform: translateY(0);    opacity: 1; filter: blur(0); }
 }
 
-.page-enter-right {
-    animation: pageSlideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
+.page-enter-right { animation: pageSlideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.page-enter-left  { animation: pageSlideInLeft  0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.page-enter-up    { animation: pageSlideInUp    0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-.page-enter-left {
-    animation: pageSlideInLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.page-enter-up {
-    animation: pageSlideInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Loading spinner */
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
+/* ── Loading ────────────────────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
 .loading-spinner {
     width: 32px;
     height: 32px;
@@ -243,19 +207,45 @@ body {
     animation: spin 0.7s linear infinite;
 }
 
-/* Pulse loader dots */
+/* ── Pulse loader dots ──────────────────────────────────────────────────────── */
 @keyframes pulseDot {
-    0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
-    40% { opacity: 1; transform: scale(1); }
+    0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+    40%           { opacity: 1;   transform: scale(1.1); }
 }
-
 .pulse-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--accent-primary);
     animation: pulseDot 1.2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent-primary);
 }
-
 .pulse-dot:nth-child(2) { animation-delay: 0.2s; }
 .pulse-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Shimmer effect ─────────────────────────────────────────────────────────── */
+.shimmer-once::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
+    animation: shimmer 1.8s ease-in-out 0.3s 1 forwards;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+/* ── Intake bubble dot pulse ────────────────────────────────────────────────── */
+@keyframes dotPulse {
+    0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+    50%       { box-shadow: 0 0 0 4px transparent; opacity: 0.8; }
+}
+
+/* ── Today dot ring pulse ───────────────────────────────────────────────────── */
+@keyframes ringPulse {
+    0%   { box-shadow: 0 0 0 0 var(--accent-primary); opacity: 0.9; }
+    70%  { box-shadow: 0 0 0 6px transparent;          opacity: 0; }
+    100% { box-shadow: 0 0 0 0 transparent;            opacity: 0; }
+}
+.ring-pulse {
+    animation: ringPulse 2s ease-out infinite;
+}
