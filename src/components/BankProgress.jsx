@@ -3,106 +3,147 @@ import { collection, query, orderBy, onSnapshot, addDoc, Timestamp, doc, deleteD
 import { db } from "../firebase";
 import { formatDateInput, formatTimeInput } from "../utils/time";
 
-export default function BankProgress() {
+const BANKS = [
+    {
+        id: "ah",
+        label: "AH",
+        collection: "bank_logs_ah",
+        accentVar: "var(--accent-ah)",
+    },
+    {
+        id: "ei",
+        label: "EI",
+        collection: "bank_logs_ei",
+        accentVar: "var(--accent-ei)",
+    },
+];
+
+function useBankLogs(collectionName) {
     const [logs, setLogs] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-
     useEffect(() => {
-        const q = query(collection(db, "bank_logs"), orderBy("timestamp", "desc"));
+        const q = query(collection(db, collectionName), orderBy("timestamp", "desc"));
         return onSnapshot(q, (snapshot) => {
-            const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setLogs(docs);
+            setLogs(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
         });
-    }, []);
+    }, [collectionName]);
+    return logs;
+}
 
+function BankCard({ bank, onOpenModal }) {
+    const logs = useBankLogs(bank.collection);
     const latestLog = logs[0] || null;
     const percentage = latestLog && latestLog.totalCapacity > 0
         ? Math.max(0, Math.min(100, (latestLog.currentRemainder / latestLog.totalCapacity) * 100))
         : 0;
 
     return (
-        <>
+        <div
+            className="relative flex-1 rounded-2xl overflow-hidden cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]"
+            style={{
+                background: "var(--surface-2)",
+                backdropFilter: "blur(32px)",
+                WebkitBackdropFilter: "blur(32px)",
+                border: "1px solid var(--glass-border)",
+                boxShadow: `0 8px 30px var(--shadow-color-strong), inset 0 1px 0 var(--glass-shine)`,
+            }}
+            onClick={() => onOpenModal(bank)}
+        >
             <div
-                className="relative w-full rounded-2xl overflow-hidden cursor-pointer transition-all hover:scale-[1.01] active:scale-[0.99]"
+                className="absolute inset-x-0 top-0 h-px pointer-events-none z-10"
+                style={{ background: "linear-gradient(90deg, transparent 5%, var(--glass-shine) 50%, transparent 95%)" }}
+            />
+            {/* subtle accent glow */}
+            <div
+                className="absolute inset-0 pointer-events-none"
                 style={{
-                    background: "var(--surface-2)",
-                    backdropFilter: "blur(32px)",
-                    WebkitBackdropFilter: "blur(32px)",
-                    border: "1px solid var(--glass-border)",
-                    boxShadow: `0 8px 30px var(--shadow-color-strong), inset 0 1px 0 var(--glass-shine)`,
+                    background: `radial-gradient(ellipse 80% 80% at 50% 120%, ${bank.accentVar} 0%, transparent 70%)`,
+                    opacity: 0.08,
                 }}
-                onClick={() => setIsModalOpen(true)}
-            >
-                <div
-                    className="absolute inset-x-0 top-0 h-px pointer-events-none z-10"
-                    style={{ background: "linear-gradient(90deg, transparent 5%, var(--glass-shine) 50%, transparent 95%)" }}
-                />
-                <div className="p-3">
-                    <div className="flex justify-between items-end mb-2">
-                        <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-                            Залишок у банці
-                        </span>
-                        {latestLog ? (
-                            <span className="text-sm font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
-                                {latestLog.currentRemainder}{" "}
-                                <span className="text-[10px] font-bold opacity-60">/ {latestLog.totalCapacity} мг</span>
-                                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md" style={{ background: "color-mix(in srgb, var(--accent-primary) 15%, transparent)", color: "var(--accent-primary)" }}>
-                                    {Math.round(percentage)}%
-                                </span>
-                            </span>
-                        ) : (
-                            <span className="text-[10px] font-bold opacity-50" style={{ color: "var(--text-primary)" }}>Немає даних</span>
-                        )}
-                    </div>
-
-                    {/* Progress Bar Container */}
-                    <div
-                        className="w-full h-2.5 rounded-full overflow-hidden relative"
-                        style={{
-                            background: "rgba(0,0,0,0.15)",
-                            border: "1px solid var(--glass-border)",
-                        }}
+            />
+            <div className="p-3 relative">
+                <div className="flex justify-between items-end mb-2">
+                    <span
+                        className="text-[10px] font-black uppercase tracking-widest"
+                        style={{ color: bank.accentVar }}
                     >
-                        {latestLog && (
-                            <div
-                                className="h-full rounded-full transition-all duration-700 relative"
-                                style={{
-                                    width: `${percentage}%`,
-                                    background: "var(--accent-primary)",
-                                    boxShadow: "0 0 12px var(--accent-primary)",
-                                }}
+                        {bank.label}
+                    </span>
+                    {latestLog ? (
+                        <span className="text-sm font-black tabular-nums" style={{ color: "var(--text-primary)" }}>
+                            {latestLog.currentRemainder}{" "}
+                            <span className="text-[10px] font-bold opacity-60">/ {latestLog.totalCapacity} мг</span>
+                            <span
+                                className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md"
+                                style={{ background: `color-mix(in srgb, ${bank.accentVar} 18%, transparent)`, color: bank.accentVar }}
                             >
-                                <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4))", opacity: 0.5 }} />
-                            </div>
-                        )}
-                    </div>
+                                {Math.round(percentage)}%
+                            </span>
+                        </span>
+                    ) : (
+                        <span className="text-[10px] font-bold opacity-40" style={{ color: "var(--text-primary)" }}>Немає даних</span>
+                    )}
+                </div>
+
+                <div
+                    className="w-full h-2 rounded-full overflow-hidden relative"
+                    style={{ background: "rgba(0,0,0,0.15)", border: "1px solid var(--glass-border)" }}
+                >
+                    {latestLog && (
+                        <div
+                            className="h-full rounded-full transition-all duration-700 relative"
+                            style={{
+                                width: `${percentage}%`,
+                                background: bank.accentVar,
+                                boxShadow: `0 0 10px ${bank.accentVar}`,
+                            }}
+                        >
+                            <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4))", opacity: 0.5 }} />
+                        </div>
+                    )}
                 </div>
             </div>
+        </div>
+    );
+}
 
-            {isModalOpen && (
+export default function BankProgress() {
+    const [modalBank, setModalBank] = useState(null); // bank config object or null
+
+    return (
+        <>
+            <div className="flex gap-3">
+                {BANKS.map((bank) => (
+                    <BankCard key={bank.id} bank={bank} onOpenModal={setModalBank} />
+                ))}
+            </div>
+
+            {modalBank && (
                 <BankModal
-                    logs={logs}
-                    onClose={() => setIsModalOpen(false)}
+                    bank={modalBank}
+                    onClose={() => setModalBank(null)}
                 />
             )}
         </>
     );
 }
 
-function BankModal({ logs, onClose }) {
+function BankModal({ bank, onClose }) {
+    const logs = useBankLogs(bank.collection);
     const latestLog = logs[0] || null;
 
     const [dateValue, setDateValue] = useState(formatDateInput(new Date()));
     const [timeValue, setTimeValue] = useState(formatTimeInput(new Date()));
-    const [totalCapacity, setTotalCapacity] = useState(latestLog ? latestLog.totalCapacity : "");
-    const [currentRemainder, setCurrentRemainder] = useState(latestLog ? latestLog.currentRemainder : "");
+    const [totalCapacity, setTotalCapacity] = useState("");
+    const [currentRemainder, setCurrentRemainder] = useState("");
     const [isAdding, setIsAdding] = useState(false);
 
+    // Prefill form once we have data
     useEffect(() => {
         if (latestLog && totalCapacity === "" && currentRemainder === "") {
             setTotalCapacity(latestLog.totalCapacity);
             setCurrentRemainder(latestLog.currentRemainder);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [latestLog]);
 
     const handleAddSubmit = async (e) => {
@@ -110,11 +151,18 @@ function BankModal({ logs, onClose }) {
         setIsAdding(true);
         try {
             const dt = new Date(`${dateValue}T${timeValue}`);
-            await addDoc(collection(db, "bank_logs"), {
+            const prev = latestLog;
+            const newRemainder = Number(currentRemainder);
+            const amount = prev ? Math.round((newRemainder - prev.currentRemainder) * 10) / 10 : null;
+
+            await addDoc(collection(db, bank.collection), {
                 timestamp: Timestamp.fromDate(dt),
                 createdAt: Timestamp.now(),
                 totalCapacity: Number(totalCapacity),
-                currentRemainder: Number(currentRemainder),
+                currentRemainder: newRemainder,
+                type: "manual",
+                note: "Ручне оновлення",
+                amount: amount,
             });
             setDateValue(formatDateInput(new Date()));
             setTimeValue(formatTimeInput(new Date()));
@@ -137,7 +185,7 @@ function BankModal({ logs, onClose }) {
             <div className="absolute inset-0 cursor-pointer" onClick={onClose} />
 
             <div
-                className="relative w-full max-w-3xl mx-auto rounded-t-3xl sm:rounded-3xl sm:mb-6 sm:max-h-[85vh] flex flex-col overflow-hidden animate-slide-up"
+                className="relative w-full max-w-3xl mx-auto rounded-t-3xl sm:rounded-3xl sm:mb-6 flex flex-col overflow-hidden"
                 style={{
                     background: "var(--surface)",
                     border: "1px solid var(--glass-border)",
@@ -147,11 +195,11 @@ function BankModal({ logs, onClose }) {
                 }}
             >
                 <style>{`
-          @keyframes slideInFromBottom {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-        `}</style>
+                    @keyframes slideInFromBottom {
+                        from { transform: translateY(100%); opacity: 0; }
+                        to { transform: translateY(0); opacity: 1; }
+                    }
+                `}</style>
                 <div
                     className="absolute inset-x-0 top-0 h-px pointer-events-none z-10"
                     style={{ background: "linear-gradient(90deg, transparent 5%, var(--glass-shine) 50%, transparent 95%)" }}
@@ -159,9 +207,17 @@ function BankModal({ logs, onClose }) {
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[var(--glass-border)]">
-                    <h2 className="text-lg font-black uppercase tracking-tight text-[var(--text-primary)]">
-                        Облік основної речовини
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <span
+                            className="text-xs font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                            style={{ background: `color-mix(in srgb, ${bank.accentVar} 18%, transparent)`, color: bank.accentVar }}
+                        >
+                            {bank.label}
+                        </span>
+                        <h2 className="text-lg font-black uppercase tracking-tight text-[var(--text-primary)]">
+                            Банка
+                        </h2>
+                    </div>
                     <button
                         type="button"
                         onClick={onClose}
@@ -177,17 +233,14 @@ function BankModal({ logs, onClose }) {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-6">
 
-                    {/* Add form */}
+                    {/* Add / replenish form */}
                     <form
                         onSubmit={handleAddSubmit}
                         className="p-4 rounded-2xl flex flex-col gap-3"
-                        style={{
-                            background: "rgba(0,0,0,0.12)",
-                            border: "1px solid var(--glass-border)",
-                        }}
+                        style={{ background: "rgba(0,0,0,0.12)", border: "1px solid var(--glass-border)" }}
                     >
                         <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-                            Додати новий запис
+                            Додати / оновити запис
                         </h3>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -209,7 +262,7 @@ function BankModal({ logs, onClose }) {
                                             background: "rgba(255,255,255,0.06)",
                                             border: "1px solid var(--glass-border)",
                                             color: "var(--text-primary)",
-                                            colorScheme: "dark" // mostly fine since we use dark themes mostly
+                                            colorScheme: "dark",
                                         }}
                                     />
                                 </div>
@@ -219,7 +272,7 @@ function BankModal({ logs, onClose }) {
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: "var(--text-secondary)" }}>
-                                    Разом за 100% (мг)
+                                    Загальна ємність (мг)
                                 </label>
                                 <input
                                     type="number"
@@ -229,11 +282,7 @@ function BankModal({ logs, onClose }) {
                                     onChange={(e) => setTotalCapacity(e.target.value)}
                                     required
                                     className="w-full rounded-xl px-3 py-2 text-sm font-black focus:outline-none tabular-nums"
-                                    style={{
-                                        background: "rgba(255,255,255,0.06)",
-                                        border: "1px solid var(--glass-border)",
-                                        color: "var(--text-primary)",
-                                    }}
+                                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--glass-border)", color: "var(--text-primary)" }}
                                 />
                             </div>
                             <div>
@@ -248,11 +297,7 @@ function BankModal({ logs, onClose }) {
                                     onChange={(e) => setCurrentRemainder(e.target.value)}
                                     required
                                     className="w-full rounded-xl px-3 py-2 text-sm font-black focus:outline-none tabular-nums"
-                                    style={{
-                                        background: "rgba(255,255,255,0.06)",
-                                        border: "1px solid var(--glass-border)",
-                                        color: "var(--text-primary)",
-                                    }}
+                                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--glass-border)", color: "var(--text-primary)" }}
                                 />
                             </div>
                         </div>
@@ -262,21 +307,20 @@ function BankModal({ logs, onClose }) {
                             disabled={isAdding}
                             className="mt-2 w-full py-3 rounded-xl font-black text-sm transition-all duration-200 active:scale-95"
                             style={{
-                                background: "var(--add-btn-bg)",
-                                color: "var(--add-btn-text)",
-                                border: "1px solid var(--add-btn-border)",
-                                boxShadow: "0 4px 12px var(--shadow-color)",
+                                background: `color-mix(in srgb, ${bank.accentVar} 22%, transparent)`,
+                                color: bank.accentVar,
+                                border: `1px solid color-mix(in srgb, ${bank.accentVar} 40%, transparent)`,
                                 opacity: isAdding ? 0.6 : 1,
                             }}
                         >
-                            {isAdding ? "Додавання..." : "Зберегти запис"}
+                            {isAdding ? "Збереження..." : "Зберегти запис"}
                         </button>
                     </form>
 
-                    {/* History List */}
+                    {/* History */}
                     <div className="flex flex-col gap-2">
                         <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-                            Історія банків
+                            Історія банки {bank.label}
                         </h3>
                         {logs.length === 0 ? (
                             <p className="text-xs font-semibold text-[var(--text-secondary)]">Немає записів.</p>
@@ -287,7 +331,7 @@ function BankModal({ logs, onClose }) {
 
                                 const handleDelete = async () => {
                                     if (window.confirm("Видалити цей запис?")) {
-                                        await deleteDoc(doc(db, "bank_logs", log.id));
+                                        await deleteDoc(doc(db, bank.collection, log.id));
                                     }
                                 };
 
@@ -296,8 +340,8 @@ function BankModal({ logs, onClose }) {
                                     if (newRemainder !== null && newRemainder !== "") {
                                         const num = Number(newRemainder);
                                         if (!isNaN(num)) {
-                                            await updateDoc(doc(db, "bank_logs", log.id), {
-                                                currentRemainder: num
+                                            await updateDoc(doc(db, bank.collection, log.id), {
+                                                currentRemainder: num,
                                             });
                                         }
                                     }
@@ -307,46 +351,47 @@ function BankModal({ logs, onClose }) {
                                     <div
                                         key={log.id}
                                         className="flex flex-col gap-2 p-3 rounded-xl"
-                                        style={{
-                                            background: "rgba(255,255,255,0.04)",
-                                            border: "1px solid var(--glass-border)",
-                                        }}
+                                        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--glass-border)" }}
                                     >
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <div className="text-xs font-black text-[var(--text-primary)] tabular-nums">
-                                                    {tsDate.toLocaleDateString("uk-UA", { day: '2-digit', month: '2-digit', year: '2-digit' })}  <span className="opacity-50 mx-1">•</span> {tsDate.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}
+                                                    {tsDate.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                                                    <span className="opacity-50 mx-1">•</span>
+                                                    {tsDate.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}
                                                 </div>
-                                                <div className="text-[9px] uppercase font-black tracking-wider text-[var(--text-secondary)] mt-0.5" >
+                                                <div className="text-[9px] uppercase font-black tracking-wider text-[var(--text-secondary)] mt-0.5">
                                                     {log.note || "Оновлення"}
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-sm font-black text-[var(--text-primary)] tabular-nums flex items-center gap-2 justify-end">
-                                                    {log.amount && (
-                                                        <span className={log.amount < 0 ? "text-red-400" : "text-green-400"}>
+                                                    {log.amount != null && (
+                                                        <span style={{ color: log.amount < 0 ? "#f87171" : "#4ade80" }}>
                                                             {log.amount > 0 ? "+" : ""}{log.amount}мг
                                                         </span>
                                                     )}
-                                                    <span>{log.currentRemainder} <span className="text-[10px] font-bold opacity-60">/ {log.totalCapacity} мг</span></span>
+                                                    <span>
+                                                        {log.currentRemainder}
+                                                        <span className="text-[10px] font-bold opacity-60"> / {log.totalCapacity} мг</span>
+                                                    </span>
                                                 </div>
-                                                <div className="text-[10px] font-black tracking-wide mt-0.5" style={{ color: "var(--text-primary)" }}>
+                                                <div className="text-[10px] font-black tracking-wide mt-0.5" style={{ color: "var(--text-secondary)" }}>
                                                     {Math.round(pct)}%
                                                 </div>
                                             </div>
                                         </div>
-                                        {/* Action buttons */}
-                                        <div className="flex justify-end gap-2 mt-1 pt-2 border-t border-[var(--glass-border)]">
-                                            <button 
-                                                type="button" 
+                                        <div className="flex justify-end gap-2 pt-2 border-t border-[var(--glass-border)]">
+                                            <button
+                                                type="button"
                                                 onClick={handleEdit}
                                                 className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md transition-all active:scale-95"
                                                 style={{ background: "rgba(255,255,255,0.08)", color: "var(--text-primary)" }}
                                             >
                                                 Редагувати
                                             </button>
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={handleDelete}
                                                 className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md transition-all active:scale-95"
                                                 style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}
@@ -359,7 +404,6 @@ function BankModal({ logs, onClose }) {
                             })
                         )}
                     </div>
-
                 </div>
             </div>
         </div>

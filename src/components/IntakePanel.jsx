@@ -91,18 +91,19 @@ export default function IntakePanel({ onAddSuccess }) {
         createdAt: Timestamp.now(),
       });
 
-      // Deduct from bank
-      if (active.dosage > 0) {
+      // Deduct from the patient-specific bank
+      if (active.dosage > 0 && active.subtype !== "LOST") {
+        const bankCollection = activePatient === "AH" ? "bank_logs_ah" : "bank_logs_ei";
         const amountToDeduct = active.unit === "mg" ? active.dosage : Math.round(active.dosage * 20);
-        const bankQuery = query(collection(db, "bank_logs"), orderBy("timestamp", "desc"), limit(1));
+        const bankQuery = query(collection(db, bankCollection), orderBy("timestamp", "desc"), limit(1));
         const bankSnapshot = await getDocs(bankQuery);
 
         if (!bankSnapshot.empty) {
           const latestBankLog = bankSnapshot.docs[0].data();
           const newRemainder = Math.max(0, latestBankLog.currentRemainder - amountToDeduct);
-          const noteText = active.subtype === "LOST" ? "LOST" : `Прийом ${finalPatientId} ${active.subtype || ""}`.trim();
+          const noteText = `Прийом ${finalPatientId} ${active.subtype || ""}`.trim();
 
-          await addDoc(collection(db, "bank_logs"), {
+          await addDoc(collection(db, bankCollection), {
             timestamp: Timestamp.fromDate(intakeTime),
             createdAt: Timestamp.now(),
             totalCapacity: latestBankLog.totalCapacity,
